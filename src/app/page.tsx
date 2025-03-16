@@ -1,7 +1,40 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Bell, BellOff, Plus, Minus, Play, Pause, RefreshCw } from 'lucide-react';
+import { Bell, BellOff, Plus, Minus, Play, Pause, RefreshCw, Undo2, Edit, Check } from 'lucide-react';
+
+// Save state to localStorage
+const saveToLocalStorage = (key, value) => {
+  if (typeof window !== 'undefined') {
+    try {
+      localStorage.setItem(key, JSON.stringify(value));
+    } catch (e) {
+      console.error('Error saving to localStorage:', e);
+    }
+  }
+};
+
+// Load state from localStorage
+const loadFromLocalStorage = (key, defaultValue) => {
+  if (typeof window !== 'undefined') {
+    try {
+      const item = localStorage.getItem(key);
+      return item ? JSON.parse(item) : defaultValue;
+    } catch (e) {
+      console.error('Error loading from localStorage:', e);
+      return defaultValue;
+    }
+  }
+  return defaultValue;
+};
+
+// Base64 encoded default icons
+const DEFAULT_ICONS = {
+  rats: "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI0NyIgZmlsbD0iIzJBMkEyQSIgc3Ryb2tlPSIjRkVDQjAwIiBzdHJva2Utd2lkdGg9IjMiLz48Y2lyY2xlIGN4PSIzMyIgY3k9IjM1IiByPSI4IiBmaWxsPSIjRkVDQjAwIi8+PGNpcmNsZSBjeD0iNjciIGN5PSIzNSIgcj0iOCIgZmlsbD0iI0ZFQ0IwMCIvPjxwYXRoIGQ9Ik0zOCA2NiBRNTAgODAgNjIgNjYiIHN0cm9rZT0iI0ZFQ0IwMCIgc3Ryb2tlLXdpZHRoPSIzIiBmaWxsPSJub25lIi8+PHBhdGggZD0iTTI1IDU1IFExNSA0NiAxMiAyNSBMMTggMzAgTTc1IDU1IFE4NSA0NiA4OCAyNSBMODIgMzAiIHN0cm9rZT0iI0ZFQ0IwMCIgc3Ryb2tlLXdpZHRoPSIyIiBmaWxsPSJub25lIi8+PC9zdmc+",
+  ginkos: "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI0NyIgZmlsbD0iI0ZFQ0IwMCIgc3Ryb2tlPSIjMkEyQTJBIiBzdHJva2Utd2lkdGg9IjMiLz48cGF0aCBkPSJNMzAgMzUgTDQwIDQ1IE01MCAzNSBMNDAgNDUgTDUwIDU1IEw0MCA0NSBMNDM1IEw0MCA0NSBMMzAgNTUiIHN0cm9rZT0iIzJBMkEyQSIgc3Ryb2tlLXdpZHRoPSI1IiBmaWxsPSJub25lIi8+PHBhdGggZD0iTTUwIDM1IEw2MCA0NSBMNzAgMzUgTDYwIDQ1IEw3MCA1NSBMNjAgNDUgTDUwIDU1IiBzdHJva2U9IiMyQTJBMkEiIHN0cm9rZS13aWR0aD0iNSIgZmlsbD0ibm9uZSIvPjxjaXJjbGUgY3g9IjQwIiBjeT0iNDUiIHI9IjMiIGZpbGw9IiMyQTJBMkEiLz48Y2lyY2xlIGN4PSI2MCIgY3k9IjQ1IiByPSIzIiBmaWxsPSIjMkEyQTJBIi8+PC9zdmc+",
+  sweetNLow: "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI0NyIgZmlsbD0iI2ZmYzBjYiIgc3Ryb2tlPSIjZmY4NDkxIiBzdHJva2Utd2lkdGg9IjMiLz48dGV4dCB4PSI1MCIgeT0iNTUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIyNCIgZm9udC13ZWlnaHQ9ImJvbGQiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZpbGw9IiNGRUNCMDAiPlM8L3RleHQ+PHRleHQgeD0iNDAiIHk9IjM1IiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTQiIGZvbnQtd2VpZ2h0PSJib2xkIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjMkEyQTJBIj4mIzk4MzU7PC90ZXh0Pjx0ZXh0IHg9IjYwIiB5PSIzNSIgZm9udC1mYW1pbHk9IkFyaWFsIiBmb250LXNpemU9IjE0IiBmb250LXdlaWdodD0iYm9sZCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZmlsbD0iIzJBMkEyQSI+JiM5ODM1OzwvdGV4dD48L3N2Zz4=",
+  goalies: "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48cmVjdCB4PSIxMCIgeT0iMTAiIHdpZHRoPSI4MCIgaGVpZ2h0PSI4MCIgZmlsbD0iIzMzNDI2MCIgc3Ryb2tlPSIjRkVDQjAwIiBzdHJva2Utd2lkdGg9IjMiLz48cmVjdCB4PSIzMCIgeT0iMTUiIHdpZHRoPSI0MCIgaGVpZ2h0PSIyMCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjRkVDQjAwIiBzdHJva2Utd2lkdGg9IjMiLz48cmVjdCB4PSIzNSIgeT0iMzUiIHdpZHRoPSIzMCIgaGVpZ2h0PSI1MCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjRkVDQjAwIiBzdHJva2Utd2lkdGg9IjMiLz48Y2lyY2xlIGN4PSI1MCIgY3k9IjI1IiByPSI1IiBmaWxsPSIjRkVDQjAwIi8+PC9zdmc+"
+};
 
 const HockeyScoreboard = () => {
   // Colors
@@ -11,39 +44,71 @@ const HockeyScoreboard = () => {
     bgLight: '#3A3A3A', // Even lighter background for certain elements
   };
   
-  // Game state
-  const [minutes, setMinutes] = useState(5);
-  const [seconds, setSeconds] = useState(0);
-  const [time, setTime] = useState(5 * 60); // 5 minutes in seconds
-  const [isRunning, setIsRunning] = useState(false);
-  const [period, setPeriod] = useState(1);
-  const [soundEnabled, setSoundEnabled] = useState(true);
-  const [teams, setTeams] = useState([
-    { id: 1, name: 'Rats', logo: null, score: 0, onIce: true, isChallenger: true },
-    { id: 2, name: 'Ginkos', logo: null, score: 0, onIce: true, isChallenger: false },
-    { id: 3, name: 'Sweet-N-Low', logo: null, score: 0, onIce: false, isChallenger: false },
-    { id: 4, name: 'Goalies', logo: null, score: 0, onIce: true, isChallenger: false, isGoalie: true }
-  ]);
+  // Game state with localStorage persistence
+  const [minutes, setMinutes] = useState(() => loadFromLocalStorage('hockey_minutes', 5));
+  const [seconds, setSeconds] = useState(() => loadFromLocalStorage('hockey_seconds', 0));
+  const [time, setTime] = useState(() => loadFromLocalStorage('hockey_time', 5 * 60));
+  const [isRunning, setIsRunning] = useState(false); // Don't load running state from storage
+  const [period, setPeriod] = useState(() => loadFromLocalStorage('hockey_period', 1));
+  const [soundEnabled, setSoundEnabled] = useState(() => loadFromLocalStorage('hockey_sound', true));
+  
+  // Define default teams with pre-set icons
+  const defaultTeams = [
+    { id: 1, name: 'Rats', logo: DEFAULT_ICONS.rats, score: 0, onIce: true, isChallenger: true },
+    { id: 2, name: 'Ginkos', logo: DEFAULT_ICONS.ginkos, score: 0, onIce: true, isChallenger: false },
+    { id: 3, name: 'Sweet-N-Low', logo: DEFAULT_ICONS.sweetNLow, score: 0, onIce: false, isChallenger: false },
+    { id: 4, name: 'Goalies', logo: DEFAULT_ICONS.goalies, score: 0, onIce: true, isChallenger: false, isGoalie: true }
+  ];
+  
+  const [teams, setTeams] = useState(() => loadFromLocalStorage('hockey_teams', defaultTeams));
+  
+  // Add state for tracking score history (for undo functionality)
+  const [scoreHistory, setScoreHistory] = useState(() => loadFromLocalStorage('hockey_score_history', []));
+  
+  // Add state for editing score
+  const [editingScore, setEditingScore] = useState(null);
+  const [tempScore, setTempScore] = useState(0);
+  
+  // Save state changes to localStorage
+  useEffect(() => saveToLocalStorage('hockey_minutes', minutes), [minutes]);
+  useEffect(() => saveToLocalStorage('hockey_seconds', seconds), [seconds]);
+  useEffect(() => saveToLocalStorage('hockey_time', time), [time]);
+  useEffect(() => saveToLocalStorage('hockey_period', period), [period]);
+  useEffect(() => saveToLocalStorage('hockey_sound', soundEnabled), [soundEnabled]);
+  useEffect(() => saveToLocalStorage('hockey_teams', teams), [teams]);
+  useEffect(() => saveToLocalStorage('hockey_score_history', scoreHistory), [scoreHistory]);
   
   const buzzerRef = useRef(null);
   
-  // Initialize buzzer sound - with alternative options and better sound handling
+  // Initialize buzzer sound with better format handling
   useEffect(() => {
-    // Primary buzzer sound (air horn - more typical for sports)
-    buzzerRef.current = new Audio('/buzzer.mp3'); // Local file in public folder
+    const tryFormats = [
+      '/buzzer.mp3',
+      '/buzzer.ogg',
+      'https://assets.mixkit.co/active_storage/sfx/1565/1565-preview.mp3'
+    ];
     
-    // Configure audio for optimal playback
-    buzzerRef.current.preload = 'auto';
-    buzzerRef.current.volume = 1.0;
+    let audioLoaded = false;
     
-    // Add event listeners to handle loading issues
-    buzzerRef.current.addEventListener('error', () => {
-      console.error("Error loading primary buzzer sound, falling back to alternative");
-      // Fallback to a different sound if the primary one fails
-      buzzerRef.current = new Audio('https://assets.mixkit.co/active_storage/sfx/1565/1565-preview.mp3');
-      buzzerRef.current.preload = 'auto';
-      buzzerRef.current.volume = 1.0;
-    });
+    // Try loading each format until one works
+    for (const format of tryFormats) {
+      try {
+        buzzerRef.current = new Audio(format);
+        
+        // Configure audio for optimal playback
+        buzzerRef.current.preload = 'auto';
+        buzzerRef.current.volume = 1.0;
+        audioLoaded = true;
+        console.log(`Loaded audio format: ${format}`);
+        break;
+      } catch (e) {
+        console.warn(`Failed to load audio format: ${format}`, e);
+      }
+    }
+    
+    if (!audioLoaded) {
+      console.error("Could not load any audio format");
+    }
     
     return () => {
       if (buzzerRef.current) {
@@ -91,13 +156,6 @@ const HockeyScoreboard = () => {
     return () => clearInterval(interval);
   }, [isRunning, time, soundEnabled]);
   
-  // Format time as MM:SS
-  const formatTime = (seconds) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
-  };
-  
   // Reset timer to 5 minutes
   const resetTimer = () => {
     setMinutes(5);
@@ -138,8 +196,46 @@ const HockeyScoreboard = () => {
     setPeriod(prev => (prev > 1 ? prev - 1 : 1));
   };
   
+  // Save current state to history before making changes (for undo functionality)
+  const addToHistory = () => {
+    // Limit history to last 15 actions
+    setScoreHistory(prev => {
+      const newHistory = [
+        {
+          teams: JSON.parse(JSON.stringify(teams)),
+          period: period
+        },
+        ...prev
+      ];
+      
+      // Keep only the last 15 entries
+      if (newHistory.length > 15) {
+        return newHistory.slice(0, 15);
+      }
+      
+      return newHistory;
+    });
+  };
+  
+  // Undo last action
+  const undoLastAction = () => {
+    if (scoreHistory.length > 0) {
+      const lastState = scoreHistory[0];
+      
+      // Restore teams and period
+      setTeams(lastState.teams);
+      setPeriod(lastState.period);
+      
+      // Remove this state from history
+      setScoreHistory(prev => prev.slice(1));
+    }
+  };
+  
   // Handle team scoring
   const handleTeamScore = (scoringTeamId) => {
+    // Save current state to history before making changes
+    addToHistory();
+    
     // Find the scoring team
     const scoringTeam = teams.find(team => team.id === scoringTeamId);
     
@@ -175,6 +271,9 @@ const HockeyScoreboard = () => {
   
   // Handle timeout/tie (challenger wins, goalies get shutout points)
   const handleTimeout = () => {
+    // Save current state to history before making changes
+    addToHistory();
+    
     const updatedTeams = teams.map(team => {
       // Challenger gets 1 point and stays on ice, but is no longer challenger
       if (team.onIce && team.isChallenger) {
@@ -197,6 +296,23 @@ const HockeyScoreboard = () => {
     
     setTeams(updatedTeams);
     incrementPeriod();
+  };
+  
+  // Start editing a team's score
+  const startEditScore = (teamId, currentScore) => {
+    setEditingScore(teamId);
+    setTempScore(currentScore);
+  };
+  
+  // Save edited score
+  const saveEditedScore = (teamId) => {
+    // Save current state to history before making changes
+    addToHistory();
+    
+    setTeams(teams.map(team => 
+      team.id === teamId ? { ...team, score: parseInt(tempScore) || 0 } : team
+    ));
+    setEditingScore(null);
   };
   
   // Update team name
@@ -244,42 +360,13 @@ const HockeyScoreboard = () => {
     <div className="flex flex-col min-h-screen" style={{ backgroundColor: colors.black, color: colors.yellow }}>
       {/* Header */}
       <header className="text-center p-4 border-b border-yellow-400">
-        <h1 className="text-5xl font-bold tracking-wider" style={{ color: colors.yellow }}>THE LEACH</h1>
+        <h1 className="text-2xl font-bold tracking-wider" style={{ color: colors.yellow }}>LEACH SCOREBOARD</h1>
       </header>
-      
-      {/* Period counter and controls */}
-      <div className="flex justify-center items-center px-4 py-2 mb-4" style={{ backgroundColor: colors.bgLight }}>
-        <div className="flex items-center">
-          <button 
-            onClick={decrementPeriod}
-            className="p-2 rounded-l-lg"
-            style={{ backgroundColor: colors.yellow, color: colors.black }}
-          >
-            <Minus size={20} />
-          </button>
-          <div className="px-4 py-2" style={{ 
-            backgroundColor: colors.black, 
-            color: 'white',
-            border: `2px solid ${colors.yellow}`,
-            minWidth: '120px',
-            textAlign: 'center'
-          }}>
-            Period: <span className="font-bold">{period}</span>
-          </div>
-          <button 
-            onClick={incrementPeriod}
-            className="p-2 rounded-r-lg"
-            style={{ backgroundColor: colors.yellow, color: colors.black }}
-          >
-            <Plus size={20} />
-          </button>
-        </div>
-      </div>
       
       {/* Main content */}
       <main className="flex-1 p-4">
         {/* Timer section - made larger and centered */}
-        <div className="flex flex-col items-center justify-center mb-8">
+        <div className="flex flex-col items-center justify-center mb-4">
           {/* Hockey-style clock */}
           <div 
             className="w-full max-w-md flex justify-center mb-4"
@@ -390,10 +477,9 @@ const HockeyScoreboard = () => {
             </button>
           </div>
         </div>
-
+  
         {/* Teams scoreboard */}
         <div className="mb-6">
-          <h2 className="text-2xl font-semibold mb-3 text-center">SCOREBOARD</h2>
           <div className="grid grid-cols-1 gap-4">
             {teams.map((team) => (
               <div 
@@ -401,8 +487,10 @@ const HockeyScoreboard = () => {
                 className={`p-4 rounded-lg flex items-center justify-between ${team.isGoalie ? 'mb-4' : ''}`}
                 style={{ 
                   backgroundColor: team.onIce ? colors.bgLight : colors.black, 
-                  borderLeft: team.isChallenger ? `8px solid ${colors.yellow}` : 'none',
-                  border: `1px solid ${colors.yellow}`,
+                  borderTop: `1px solid ${colors.yellow}`,
+                  borderRight: `1px solid ${colors.yellow}`,
+                  borderBottom: `1px solid ${colors.yellow}`,
+                  borderLeft: team.isChallenger ? `8px solid ${colors.yellow}` : `1px solid ${colors.yellow}`,
                 }}
               >
                 <div className="flex items-center">
@@ -450,29 +538,103 @@ const HockeyScoreboard = () => {
                     </div>
                   </div>
                 </div>
-                {/* Fixed width score box */}
-                <div 
-                  className="text-4xl font-bold flex items-center justify-center"
-                  style={{ 
-                    color: 'white',
-                    backgroundColor: colors.black,
-                    border: `2px solid ${colors.yellow}`,
-                    width: '80px', // Fixed width
-                    height: '64px',
-                    borderRadius: '4px',
-                    flexShrink: 0 // Prevent shrinking when team name is long
-                  }}
-                >
-                  {team.score}
+                {/* Editable score box */}
+                <div className="flex items-center">
+                  {editingScore === team.id ? (
+                    <div className="flex items-center">
+                      <input
+                        type="number"
+                        value={tempScore}
+                        onChange={(e) => setTempScore(e.target.value)}
+                        className="w-16 h-12 text-3xl font-bold text-center bg-transparent border-2 outline-none mr-2"
+                        style={{ 
+                          color: 'white',
+                          borderColor: colors.yellow,
+                          borderRadius: '4px'
+                        }}
+                        min="0"
+                        max="999"
+                      />
+                      <button
+                        onClick={() => saveEditedScore(team.id)}
+                        className="p-2 rounded-full"
+                        style={{ 
+                          backgroundColor: colors.bgLight,
+                          color: colors.yellow,
+                          border: `2px solid ${colors.yellow}`
+                        }}
+                      >
+                        <Check size={20} />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center">
+                      <div 
+                        className="text-4xl font-bold flex items-center justify-center"
+                        style={{ 
+                          color: 'white',
+                          backgroundColor: colors.black,
+                          border: `2px solid ${colors.yellow}`,
+                          width: '80px', // Fixed width
+                          height: '64px',
+                          borderRadius: '4px',
+                          flexShrink: 0 // Prevent shrinking when team name is long
+                        }}
+                      >
+                        {team.score}
+                        <button
+                          onClick={() => startEditScore(team.id, team.score)}
+                          className="absolute -top-2 -right-2 p-1 rounded-full"
+                          style={{ 
+                            backgroundColor: colors.yellow,
+                            color: colors.black,
+                            border: `1px solid ${colors.black}`,
+                            fontSize: '10px',
+                          }}
+                        >
+                          <Edit size={12} />
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             ))}
           </div>
         </div>
+  
+        {/* Period counter and controls - MOVED BELOW TEAM SCORE CARDS */}
+        <div className="flex justify-center items-center px-4 py-2 mb-6" style={{ backgroundColor: colors.bgLight }}>
+          <div className="flex items-center">
+            <button 
+              onClick={decrementPeriod}
+              className="p-2 rounded-l-lg"
+              style={{ backgroundColor: colors.yellow, color: colors.black }}
+            >
+              <Minus size={20} />
+            </button>
+            <div className="px-4 py-2" style={{ 
+              backgroundColor: colors.black, 
+              color: 'white',
+              border: `2px solid ${colors.yellow}`,
+              minWidth: '120px',
+              textAlign: 'center'
+            }}>
+              Period: <span className="font-bold">{period}</span>
+            </div>
+            <button 
+              onClick={incrementPeriod}
+              className="p-2 rounded-r-lg"
+              style={{ backgroundColor: colors.yellow, color: colors.black }}
+            >
+              <Plus size={20} />
+            </button>
+          </div>
+        </div>
         
         {/* Score buttons */}
         <div className="mb-6">
-          <h2 className="text-2xl font-semibold mb-3 text-center">SCORE</h2>
+          <h2 className="text-2xl font-semibold mb-3 text-center">INPUT SCORES:</h2>
           <div className="grid grid-cols-2 gap-4">
             {teams.filter(team => team.onIce && !team.isGoalie).map((team) => (
               <button
@@ -498,10 +660,32 @@ const HockeyScoreboard = () => {
             >
               No Score / Timeout
             </button>
+            
+            {/* Undo button */}
+            <button
+              onClick={undoLastAction}
+              disabled={scoreHistory.length === 0}
+              className="p-3 rounded-lg text-center col-span-2 mt-2 text-base font-bold flex items-center justify-center"
+              style={{ 
+                backgroundColor: scoreHistory.length === 0 ? '#555' : colors.bgLight,
+                color: scoreHistory.length === 0 ? '#999' : colors.yellow,
+                border: `2px solid ${scoreHistory.length === 0 ? '#555' : colors.yellow}`,
+                opacity: scoreHistory.length === 0 ? 0.7 : 1,
+                cursor: scoreHistory.length === 0 ? 'not-allowed' : 'pointer'
+              }}
+            >
+              <Undo2 size={20} className="mr-2" />
+              Undo Last Scoring Action
+              {scoreHistory.length > 0 && (
+                <span className="ml-2 px-2 py-0.5 rounded-full text-sm" style={{ backgroundColor: colors.yellow, color: colors.black }}>
+                  {scoreHistory.length}
+                </span>
+              )}
+            </button>
           </div>
         </div>
         
-        {/* Team Setup link (moved below scoreboard) */}
+        {/* Team Setup link */}
         <div className="text-center mb-6">
           <button
             onClick={() => setShowTeamSetup(true)}
@@ -628,8 +812,6 @@ const HockeyScoreboard = () => {
             </div>
           </div>
         )}
-        
-        {/* Removing duplicate Team Setup Modal that was in the original code */}
       </main>
     </div>
   );
