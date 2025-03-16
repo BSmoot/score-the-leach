@@ -1,10 +1,26 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Bell, BellOff, Plus, Minus, Play, Pause, RefreshCw, Undo2, Edit, Check } from 'lucide-react';
+import { Bell, BellOff, Plus, Minus, Play, Pause, RefreshCw, Undo2, Edit } from 'lucide-react';
+
+// Type definitions
+interface Team {
+  id: number;
+  name: string;
+  logo: string;
+  score: number;
+  onIce: boolean;
+  isChallenger: boolean;
+  isGoalie?: boolean;
+}
+
+interface HistoryState {
+  teams: Team[];
+  period: number;
+}
 
 // Save state to localStorage
-const saveToLocalStorage = (key, value) => {
+const saveToLocalStorage = (key: string, value: any): void => {
   if (typeof window !== 'undefined') {
     try {
       localStorage.setItem(key, JSON.stringify(value));
@@ -15,7 +31,7 @@ const saveToLocalStorage = (key, value) => {
 };
 
 // Load state from localStorage
-const loadFromLocalStorage = (key, defaultValue) => {
+const loadFromLocalStorage = <T,>(key: string, defaultValue: T): T => {
   if (typeof window !== 'undefined') {
     try {
       const item = localStorage.getItem(key);
@@ -36,7 +52,7 @@ const DEFAULT_ICONS = {
   goalies: "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48cmVjdCB4PSIxMCIgeT0iMTAiIHdpZHRoPSI4MCIgaGVpZ2h0PSI4MCIgZmlsbD0iIzMzNDI2MCIgc3Ryb2tlPSIjRkVDQjAwIiBzdHJva2Utd2lkdGg9IjMiLz48cmVjdCB4PSIzMCIgeT0iMTUiIHdpZHRoPSI0MCIgaGVpZ2h0PSIyMCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjRkVDQjAwIiBzdHJva2Utd2lkdGg9IjMiLz48cmVjdCB4PSIzNSIgeT0iMzUiIHdpZHRoPSIzMCIgaGVpZ2h0PSI1MCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjRkVDQjAwIiBzdHJva2Utd2lkdGg9IjMiLz48Y2lyY2xlIGN4PSI1MCIgY3k9IjI1IiByPSI1IiBmaWxsPSIjRkVDQjAwIi8+PC9zdmc+"
 };
 
-const HockeyScoreboard = () => {
+const HockeyScoreboard: React.FC = () => {
   // Colors
   const colors = {
     yellow: '#FECB00', // Updated yellow color
@@ -45,29 +61,29 @@ const HockeyScoreboard = () => {
   };
   
   // Game state with localStorage persistence
-  const [minutes, setMinutes] = useState(() => loadFromLocalStorage('hockey_minutes', 5));
-  const [seconds, setSeconds] = useState(() => loadFromLocalStorage('hockey_seconds', 0));
-  const [time, setTime] = useState(() => loadFromLocalStorage('hockey_time', 5 * 60));
-  const [isRunning, setIsRunning] = useState(false); // Don't load running state from storage
-  const [period, setPeriod] = useState(() => loadFromLocalStorage('hockey_period', 1));
-  const [soundEnabled, setSoundEnabled] = useState(() => loadFromLocalStorage('hockey_sound', true));
+  const [minutes, setMinutes] = useState<number>(() => loadFromLocalStorage<number>('hockey_minutes', 5));
+  const [seconds, setSeconds] = useState<number>(() => loadFromLocalStorage<number>('hockey_seconds', 0));
+  const [time, setTime] = useState<number>(() => loadFromLocalStorage<number>('hockey_time', 5 * 60));
+  const [isRunning, setIsRunning] = useState<boolean>(false); // Don't load running state from storage
+  const [period, setPeriod] = useState<number>(() => loadFromLocalStorage<number>('hockey_period', 1));
+  const [soundEnabled, setSoundEnabled] = useState<boolean>(() => loadFromLocalStorage<boolean>('hockey_sound', true));
   
   // Define default teams with pre-set icons
-  const defaultTeams = [
+  const defaultTeams: Team[] = [
     { id: 1, name: 'Rats', logo: DEFAULT_ICONS.rats, score: 0, onIce: true, isChallenger: true },
     { id: 2, name: 'Ginkos', logo: DEFAULT_ICONS.ginkos, score: 0, onIce: true, isChallenger: false },
     { id: 3, name: 'Sweet-N-Low', logo: DEFAULT_ICONS.sweetNLow, score: 0, onIce: false, isChallenger: false },
     { id: 4, name: 'Goalies', logo: DEFAULT_ICONS.goalies, score: 0, onIce: true, isChallenger: false, isGoalie: true }
   ];
   
-  const [teams, setTeams] = useState(() => loadFromLocalStorage('hockey_teams', defaultTeams));
+  const [teams, setTeams] = useState<Team[]>(() => loadFromLocalStorage<Team[]>('hockey_teams', defaultTeams));
   
   // Add state for tracking score history (for undo functionality)
-  const [scoreHistory, setScoreHistory] = useState(() => loadFromLocalStorage('hockey_score_history', []));
+  const [scoreHistory, setScoreHistory] = useState<HistoryState[]>(() => loadFromLocalStorage<HistoryState[]>('hockey_score_history', []));
   
   // Add state for editing score
-  const [editingScore, setEditingScore] = useState(null);
-  const [tempScore, setTempScore] = useState(0);
+  const [editingScore, setEditingScore] = useState<number | null>(null);
+  const [tempScore, setTempScore] = useState<number>(0);
   
   // Save state changes to localStorage
   useEffect(() => saveToLocalStorage('hockey_minutes', minutes), [minutes]);
@@ -78,7 +94,7 @@ const HockeyScoreboard = () => {
   useEffect(() => saveToLocalStorage('hockey_teams', teams), [teams]);
   useEffect(() => saveToLocalStorage('hockey_score_history', scoreHistory), [scoreHistory]);
   
-  const buzzerRef = useRef(null);
+  const buzzerRef = useRef<HTMLAudioElement | null>(null);
   
   // Initialize buzzer sound with better format handling
   useEffect(() => {
@@ -120,7 +136,7 @@ const HockeyScoreboard = () => {
   
   // Timer logic
   useEffect(() => {
-    let interval = null;
+    let interval: NodeJS.Timeout | null = null;
     if (isRunning && time > 0) {
       interval = setInterval(() => {
         setTime(prevTime => prevTime - 1);
@@ -145,7 +161,9 @@ const HockeyScoreboard = () => {
               console.error("Error playing buzzer:", error);
               // Try an alternative approach for mobile devices
               document.addEventListener('click', function playOnFirstClick() {
-                buzzerRef.current.play().catch(e => console.error("Still cannot play audio:", e));
+                if (buzzerRef.current) {
+                  buzzerRef.current.play().catch(e => console.error("Still cannot play audio:", e));
+                }
                 document.removeEventListener('click', playOnFirstClick);
               }, { once: true });
             });
@@ -153,11 +171,13 @@ const HockeyScoreboard = () => {
       }
     }
     
-    return () => clearInterval(interval);
+    return () => {
+      if (interval) clearInterval(interval);
+    };
   }, [isRunning, time, soundEnabled]);
   
   // Reset timer to 5 minutes
-  const resetTimer = () => {
+  const resetTimer = (): void => {
     setMinutes(5);
     setSeconds(0);
     setTime(5 * 60);
@@ -176,28 +196,28 @@ const HockeyScoreboard = () => {
   }, [time]);
   
   // Toggle timer pause/play
-  const toggleTimer = () => {
+  const toggleTimer = (): void => {
     setIsRunning(!isRunning);
   };
   
   // Toggle sound
-  const toggleSound = () => {
+  const toggleSound = (): void => {
     setSoundEnabled(!soundEnabled);
   };
   
   // Increment period and reset timer
-  const incrementPeriod = () => {
+  const incrementPeriod = (): void => {
     setPeriod(prev => prev + 1);
     resetTimer();
   };
   
   // Decrement period
-  const decrementPeriod = () => {
+  const decrementPeriod = (): void => {
     setPeriod(prev => (prev > 1 ? prev - 1 : 1));
   };
   
   // Save current state to history before making changes (for undo functionality)
-  const addToHistory = () => {
+  const addToHistory = (): void => {
     // Limit history to last 15 actions
     setScoreHistory(prev => {
       const newHistory = [
@@ -218,7 +238,7 @@ const HockeyScoreboard = () => {
   };
   
   // Undo last action
-  const undoLastAction = () => {
+  const undoLastAction = (): void => {
     if (scoreHistory.length > 0) {
       const lastState = scoreHistory[0];
       
@@ -232,7 +252,7 @@ const HockeyScoreboard = () => {
   };
   
   // Handle team scoring
-  const handleTeamScore = (scoringTeamId) => {
+  const handleTeamScore = (scoringTeamId: number): void => {
     // Save current state to history before making changes
     addToHistory();
     
@@ -270,7 +290,7 @@ const HockeyScoreboard = () => {
   };
   
   // Handle timeout/tie (challenger wins, goalies get shutout points)
-  const handleTimeout = () => {
+  const handleTimeout = (): void => {
     // Save current state to history before making changes
     addToHistory();
     
@@ -298,49 +318,45 @@ const HockeyScoreboard = () => {
     incrementPeriod();
   };
   
-  // Start editing a team's score
-  const startEditScore = (teamId, currentScore) => {
-    setEditingScore(teamId);
-    setTempScore(currentScore);
-  };
-  
   // Save edited score
-  const saveEditedScore = (teamId) => {
+  const saveEditedScore = (teamId: number): void => {
     // Save current state to history before making changes
     addToHistory();
     
     setTeams(teams.map(team => 
-      team.id === teamId ? { ...team, score: parseInt(tempScore) || 0 } : team
+      team.id === teamId ? { ...team, score: parseInt(tempScore.toString()) || 0 } : team
     ));
     setEditingScore(null);
   };
   
   // Update team name
-  const updateTeamName = (id, newName) => {
+  const updateTeamName = (id: number, newName: string): void => {
     setTeams(teams.map(team => 
       team.id === id ? { ...team, name: newName } : team
     ));
   };
   
   // Update team logo
-  const updateTeamLogo = (id, logoFile) => {
+  const updateTeamLogo = (id: number, logoFile: File): void => {
     if (!logoFile) return;
     
     const reader = new FileReader();
     reader.onload = (e) => {
-      setTeams(teams.map(team => 
-        team.id === id ? { ...team, logo: e.target.result } : team
-      ));
+      if (e.target && typeof e.target.result === 'string') {
+        setTeams(teams.map(team => 
+          team.id === id ? { ...team, logo: e.target.result as string } : team
+        ));
+      }
     };
     reader.readAsDataURL(logoFile);
   };
   
   // Setup teams modal functionality
-  const [showTeamSetup, setShowTeamSetup] = useState(false);
+  const [showTeamSetup, setShowTeamSetup] = useState<boolean>(false);
   
   // Reorder teams
-  const reorderTeams = (teamIds) => {
-    const reorderedTeams = [];
+  const reorderTeams = (teamIds: number[]): void => {
+    const reorderedTeams: Team[] = [];
     teamIds.forEach((id, index) => {
       const team = teams.find(t => t.id === id);
       if (team) {
@@ -356,6 +372,16 @@ const HockeyScoreboard = () => {
     }
   };
   
+  // Reset entire game
+  const resetGame = (): void => {
+    if (window.confirm("Are you sure you want to reset the entire game? All scores and history will be lost.")) {
+      setTeams(defaultTeams);
+      setPeriod(1);
+      setScoreHistory([]);
+      resetTimer();
+    }
+  };
+
   return (
     <div className="flex flex-col min-h-screen" style={{ backgroundColor: colors.black, color: colors.yellow }}>
       {/* Header */}
@@ -397,7 +423,7 @@ const HockeyScoreboard = () => {
                     }
                   }}
                   className="w-24 text-7xl font-mono text-center bg-transparent border-none outline-none"
-                  style={{ color: 'white', lineHeight: 1.2 }}
+                  style={{ color: 'white', lineHeight: '1.2' }}
                 />
                 <button 
                   className="px-2 text-xs" 
@@ -429,7 +455,7 @@ const HockeyScoreboard = () => {
                     }
                   }}
                   className="w-24 text-7xl font-mono text-center bg-transparent border-none outline-none"
-                  style={{ color: 'white', lineHeight: 1.2 }}
+                  style={{ color: 'white', lineHeight: '1.2' }}
                 />
                 <button 
                   className="px-2 text-xs"
@@ -504,8 +530,9 @@ const HockeyScoreboard = () => {
                       input.type = 'file';
                       input.accept = 'image/*';
                       input.onchange = (e) => {
-                        if (e.target.files.length > 0) {
-                          updateTeamLogo(team.id, e.target.files[0]);
+                        const target = e.target as HTMLInputElement;
+                        if (target.files && target.files.length > 0) {
+                          updateTeamLogo(team.id, target.files[0]);
                         }
                       };
                       input.click();
@@ -582,18 +609,7 @@ const HockeyScoreboard = () => {
                         }}
                       >
                         {team.score}
-                        <button
-                          onClick={() => startEditScore(team.id, team.score)}
-                          className="absolute -top-2 -right-2 p-1 rounded-full"
-                          style={{ 
-                            backgroundColor: colors.yellow,
-                            color: colors.black,
-                            border: `1px solid ${colors.black}`,
-                            fontSize: '10px',
-                          }}
-                        >
-                          <Edit size={12} />
-                        </button>
+                        
                       </div>
                     </div>
                   )}
@@ -712,7 +728,7 @@ const HockeyScoreboard = () => {
                       key={team.id} 
                       className="p-3 rounded bg-gray-800 flex items-center"
                       draggable
-                      onDragStart={(e) => e.dataTransfer.setData('text/plain', team.id)}
+                      onDragStart={(e) => e.dataTransfer.setData('text/plain', team.id.toString())}
                       onDragOver={(e) => e.preventDefault()}
                       onDrop={(e) => {
                         e.preventDefault();
@@ -751,8 +767,9 @@ const HockeyScoreboard = () => {
                           input.type = 'file';
                           input.accept = 'image/*';
                           input.onchange = (e) => {
-                            if (e.target.files.length > 0) {
-                              updateTeamLogo(team.id, e.target.files[0]);
+                            const target = e.target as HTMLInputElement;
+                            if (target.files && target.files.length > 0) {
+                              updateTeamLogo(team.id, target.files[0]);
                             }
                           };
                           input.click();
@@ -786,8 +803,9 @@ const HockeyScoreboard = () => {
                           input.type = 'file';
                           input.accept = 'image/*';
                           input.onchange = (e) => {
-                            if (e.target.files.length > 0) {
-                              updateTeamLogo(team.id, e.target.files[0]);
+                            const target = e.target as HTMLInputElement;
+                            if (target.files && target.files.length > 0) {
+                              updateTeamLogo(team.id, target.files[0]);
                             }
                           };
                           input.click();
@@ -809,6 +827,21 @@ const HockeyScoreboard = () => {
               >
                 Save Teams
               </button>
+
+              {/* Reset game button at bottom */}
+              <div className="text-center mt-8 mb-4">
+                <button
+                  onClick={resetGame}
+                  className="p-4 rounded-lg text-center text-base font-bold"
+                  style={{ 
+                    backgroundColor: 'transparent',
+                    color: colors.yellow, 
+                    border: `2px solid ${colors.yellow}`
+                  }}
+                >
+                  Reset Entire Game
+                </button>
+              </div>
             </div>
           </div>
         )}
