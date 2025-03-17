@@ -20,7 +20,7 @@ interface HistoryState {
 }
 
 // Save state to localStorage
-const saveToLocalStorage = (key: string, value: any): void => {
+const saveToLocalStorage = <T extends unknown>(key: string, value: T): void => {
   if (typeof window !== 'undefined') {
     try {
       localStorage.setItem(key, JSON.stringify(value));
@@ -31,11 +31,11 @@ const saveToLocalStorage = (key: string, value: any): void => {
 };
 
 // Load state from localStorage
-const loadFromLocalStorage = <T,>(key: string, defaultValue: T): T => {
+const loadFromLocalStorage = <T extends unknown>(key: string, defaultValue: T): T => {
   if (typeof window !== 'undefined') {
     try {
       const item = localStorage.getItem(key);
-      return item ? JSON.parse(item) : defaultValue;
+      return item ? JSON.parse(item) as T : defaultValue;
     } catch (e) {
       console.error('Error loading from localStorage:', e);
       return defaultValue;
