@@ -604,23 +604,24 @@ const HockeyScoreboard: React.FC = () => {
                       <span className="text-xl">{showTeamSetup ? '+' : ''}</span>
                     )}
                   </div>
-                  <div className="flex flex-col">
+                  <div className="flex flex-col" style={{ width: '200px' }}> {/* Add fixed width here */}
                     <input
                       type="text"
                       value={team.name}
                       onChange={(e) => updateTeamName(team.id, e.target.value)}
                       className="bg-transparent border-b border-yellow-400 outline-none"
-                      style={{ 
-                        width: team.name.length + 3 + 'ch', 
-                        minWidth: '80px',
+                      style={{
+                        width: '100%',  // Changed from dynamic to 100%
                         color: colors.yellow
                       }}
                     />
-                    <div className="text-sm font-medium mt-1 px-2 py-0 rounded-full inline-block"
-                      style={{ 
+                    <div 
+                      className="text-sm font-medium mt-1 px-2 py-0 rounded-full inline-flex items-center justify-center"
+                      style={{
                         backgroundColor: team.onIce ? colors.yellow : 'transparent',
                         color: team.onIce ? colors.black : colors.yellow,
-                        border: !team.onIce ? `1px solid ${colors.yellow}` : 'none'
+                        border: !team.onIce ? `1px solid ${colors.yellow}` : 'none',
+                        width: '100px'
                       }}
                     >
                       {team.onIce ? (team.isChallenger ? 'Challenger' : (team.isGoalie ? '-' : 'Defending')) : 'Waiting'}
@@ -775,7 +776,7 @@ const HockeyScoreboard: React.FC = () => {
             className="text-base underline"
             style={{ color: colors.yellow }}
           >
-            Setup Teams
+            Set Initial Team Status
           </button>
         </div>
 
@@ -863,11 +864,13 @@ const HockeyScoreboard: React.FC = () => {
                       >
                         <div className="cursor-move mr-2">≡</div>
                         <div className="text-sm font-medium px-2 py-0 rounded-full mr-2"
-                            style={{
-                              backgroundColor: index === 0 ? colors.yellow : index === 1 ? colors.bgLight : 'transparent',
-                              color: index === 0 ? colors.black : colors.yellow,
-                              border: `1px solid ${colors.yellow}`
-                            }}
+                          style={{
+                            backgroundColor: index === 0 ? colors.yellow : index === 1 ? colors.bgLight : 'transparent',
+                            color: index === 0 ? colors.black : colors.yellow,
+                            border: `1px solid ${colors.yellow}`,
+                            minWidth: '90px',  // Add this
+                            textAlign: 'center'  // Add this
+                          }}
                         >
                           {index === 0 ? 'Defending' : index === 1 ? 'Challenger' : 'Waiting'}
                         </div>
@@ -875,8 +878,11 @@ const HockeyScoreboard: React.FC = () => {
                           type="text"
                           value={team.name}
                           onChange={(e) => updateTeamName(team.id, e.target.value)}
-                          className="bg-transparent border-b border-yellow-400 flex-grow outline-none"
-                          style={{ color: colors.yellow }}
+                          className="bg-transparent mr-4 border-b border-yellow-400 flex-grow outline-none"
+                          style={{ 
+                            color: colors.yellow,
+                            minWidth: '130px'
+                           }}
                         />
                         <TeamLogo team={team} updateTeamLogo={updateTeamLogo} />
                       </div>
@@ -894,8 +900,11 @@ const HockeyScoreboard: React.FC = () => {
                         type="text"
                         value={team.name}
                         onChange={(e) => updateTeamName(team.id, e.target.value)}
-                        className="bg-transparent border-b border-yellow-400 flex-grow outline-none"
-                        style={{ color: colors.yellow }}
+                        className="bg-transparent mr-4 border-b border-yellow-400 flex-grow outline-none"
+                        style={{ 
+                          color: colors.yellow,
+                          minWidth: '150px'
+                         }}
                       />
                       <TeamLogo team={team} updateTeamLogo={updateTeamLogo} />
                     </React.Fragment>
@@ -903,18 +912,37 @@ const HockeyScoreboard: React.FC = () => {
                 </div>
               </div>
 
+              <div className="grid grid-cols-2 gap-4">
+              <button
+                onClick={() => setShowTeamSetup(false)}
+                className="p-2 rounded-lg"
+                style={{
+                  backgroundColor: 'transparent',
+                  color: colors.yellow,
+                  border: `2px solid ${colors.yellow}`
+                }}
+              >
+                Cancel
+              </button>
+              
               <button
                 onClick={() => {
+                  const updatedTeams = teams.map(team => ({
+                    ...team,
+                    score: 0
+                  }));
+                  setTeams(updatedTeams);
                   setPeriod(1);
                   setScoreHistory([]);
                   resetTimer();
                   setShowTeamSetup(false);
                 }}
-                className="w-full p-2 rounded-lg"
+                className="p-2 rounded-lg"
                 style={{ backgroundColor: colors.yellow, color: colors.black }}
               >
-                Start New Game with This Order
+                Start New Game
               </button>
+              </div>
             </div>
           </div>
         )}
