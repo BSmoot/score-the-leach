@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Bell, BellOff, Plus, Minus, Play, Pause, RefreshCw, Undo2, Edit } from 'lucide-react';
+import { Bell, BellOff, Plus, Minus, Play, Pause, RefreshCw, Undo2, Check } from 'lucide-react';
 
 // Type definitions
 interface Team {
@@ -46,11 +46,10 @@ const loadFromLocalStorage = <T,>(key: string, defaultValue: T): T => {
 
 // Base64 encoded default icons
 const DEFAULT_ICONS = {
-  rats: "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI0NyIgZmlsbD0iIzJBMkEyQSIgc3Ryb2tlPSIjRkVDQjAwIiBzdHJva2Utd2lkdGg9IjMiLz48Y2lyY2xlIGN4PSIzMyIgY3k9IjM1IiByPSI4IiBmaWxsPSIjRkVDQjAwIi8+PGNpcmNsZSBjeD0iNjciIGN5PSIzNSIgcj0iOCIgZmlsbD0iI0ZFQ0IwMCIvPjxwYXRoIGQ9Ik0zOCA2NiBRNTAgODAgNjIgNjYiIHN0cm9rZT0iI0ZFQ0IwMCIgc3Ryb2tlLXdpZHRoPSIzIiBmaWxsPSJub25lIi8+PHBhdGggZD0iTTI1IDU1IFExNSA0NiAxMiAyNSBMMTggMzAgTTc1IDU1IFE4NSA0NiA4OCAyNSBMODIgMzAiIHN0cm9rZT0iI0ZFQ0IwMCIgc3Ryb2tlLXdpZHRoPSIyIiBmaWxsPSJub25lIi8+PC9zdmc+",
-  ginkos: "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI0NyIgZmlsbD0iI0ZFQ0IwMCIgc3Ryb2tlPSIjMkEyQTJBIiBzdHJva2Utd2lkdGg9IjMiLz48cGF0aCBkPSJNMzAgMzUgTDQwIDQ1IE01MCAzNSBMNDAgNDUgTDUwIDU1IEw0MCA0NSBMNDM1IEw0MCA0NSBMMzAgNTUiIHN0cm9rZT0iIzJBMkEyQSIgc3Ryb2tlLXdpZHRoPSI1IiBmaWxsPSJub25lIi8+PHBhdGggZD0iTTUwIDM1IEw2MCA0NSBMNzAgMzUgTDYwIDQ1IEw3MCA1NSBMNjAgNDUgTDUwIDU1IiBzdHJva2U9IiMyQTJBMkEiIHN0cm9rZS13aWR0aD0iNSIgZmlsbD0ibm9uZSIvPjxjaXJjbGUgY3g9IjQwIiBjeT0iNDUiIHI9IjMiIGZpbGw9IiMyQTJBMkEiLz48Y2lyY2xlIGN4PSI2MCIgY3k9IjQ1IiByPSIzIiBmaWxsPSIjMkEyQTJBIi8+PC9zdmc+",
-  sweetNLow: "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI0NyIgZmlsbD0iI2ZmYzBjYiIgc3Ryb2tlPSIjZmY4NDkxIiBzdHJva2Utd2lkdGg9IjMiLz48dGV4dCB4PSI1MCIgeT0iNTUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIyNCIgZm9udC13ZWlnaHQ9ImJvbGQiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZpbGw9IiNGRUNCMDAiPlM8L3RleHQ+PHRleHQgeD0iNDAiIHk9IjM1IiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTQiIGZvbnQtd2VpZ2h0PSJib2xkIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjMkEyQTJBIj4mIzk4MzU7PC90ZXh0Pjx0ZXh0IHg9IjYwIiB5PSIzNSIgZm9udC1mYW1pbHk9IkFyaWFsIiBmb250LXNpemU9IjE0IiBmb250LXdlaWdodD0iYm9sZCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZmlsbD0iIzJBMkEyQSI+JiM5ODM1OzwvdGV4dD48L3N2Zz4=",
-  goalies: "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48cmVjdCB4PSIxMCIgeT0iMTAiIHdpZHRoPSI4MCIgaGVpZ2h0PSI4MCIgZmlsbD0iIzMzNDI2MCIgc3Ryb2tlPSIjRkVDQjAwIiBzdHJva2Utd2lkdGg9IjMiLz48cmVjdCB4PSIzMCIgeT0iMTUiIHdpZHRoPSI0MCIgaGVpZ2h0PSIyMCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjRkVDQjAwIiBzdHJva2Utd2lkdGg9IjMiLz48cmVjdCB4PSIzNSIgeT0iMzUiIHdpZHRoPSIzMCIgaGVpZ2h0PSI1MCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjRkVDQjAwIiBzdHJva2Utd2lkdGg9IjMiLz48Y2lyY2xlIGN4PSI1MCIgY3k9IjI1IiByPSI1IiBmaWxsPSIjRkVDQjAwIi8+PC9zdmc+"
-};
+  rats: "/rat-logo.png",
+  ginkos: "/ginko.svg",
+  sweetNLow: "/sweet-n-low.svg",
+  goalies: "/goalie.png"};
 
 const HockeyScoreboard: React.FC = () => {
   // Colors
@@ -342,9 +341,10 @@ const HockeyScoreboard: React.FC = () => {
     
     const reader = new FileReader();
     reader.onload = (e) => {
-      if (e.target && typeof e.target.result === 'string') {
+      const target = e.target;
+      if (target && typeof target.result === 'string') {
         setTeams(teams.map(team => 
-          team.id === id ? { ...team, logo: e.target.result as string } : team
+          team.id === id ? { ...team, logo: target.result } : team
         ));
       }
     };
@@ -385,7 +385,10 @@ const HockeyScoreboard: React.FC = () => {
   return (
     <div className="flex flex-col min-h-screen" style={{ backgroundColor: colors.black, color: colors.yellow }}>
       {/* Header */}
-      <header className="text-center p-4 border-b border-yellow-400">
+      <header className="text-center p-4 border-b border-yellow-400 flex items-center justify-center">
+        <div className="w-10 h-10 mr-2">
+          <img src="/leach.jpg" alt="Leach Hockey Logo" className="w-full h-full" />
+        </div>
         <h1 className="text-2xl font-bold tracking-wider" style={{ color: colors.yellow }}>LEACH SCOREBOARD</h1>
       </header>
       
@@ -422,7 +425,7 @@ const HockeyScoreboard: React.FC = () => {
                       setMinutes(val);
                     }
                   }}
-                  className="w-24 text-7xl font-mono text-center bg-transparent border-none outline-none"
+                  className="w-36 text-7xl font-mono text-center bg-transparent border-none outline-none"
                   style={{ color: 'white', lineHeight: '1.2' }}
                 />
                 <button 
@@ -454,7 +457,7 @@ const HockeyScoreboard: React.FC = () => {
                       setSeconds(val);
                     }
                   }}
-                  className="w-24 text-7xl font-mono text-center bg-transparent border-none outline-none"
+                  className="w-36 text-7xl font-mono text-center bg-transparent border-none outline-none"
                   style={{ color: 'white', lineHeight: '1.2' }}
                 />
                 <button 
@@ -516,7 +519,7 @@ const HockeyScoreboard: React.FC = () => {
                   borderTop: `1px solid ${colors.yellow}`,
                   borderRight: `1px solid ${colors.yellow}`,
                   borderBottom: `1px solid ${colors.yellow}`,
-                  borderLeft: team.isChallenger ? `8px solid ${colors.yellow}` : `1px solid ${colors.yellow}`,
+                  borderLeft: team.isChallenger ? `1px solid ${colors.yellow}` : `1px solid ${colors.yellow}`,
                 }}
               >
                 <div className="flex items-center">
@@ -531,7 +534,7 @@ const HockeyScoreboard: React.FC = () => {
                       input.accept = 'image/*';
                       input.onchange = (e) => {
                         const target = e.target as HTMLInputElement;
-                        if (target.files && target.files.length > 0) {
+                        if (target && target.files && target.files.length > 0) {
                           updateTeamLogo(team.id, target.files[0]);
                         }
                       };
@@ -561,7 +564,7 @@ const HockeyScoreboard: React.FC = () => {
                         border: !team.onIce ? `1px solid ${colors.yellow}` : 'none'
                       }}
                     >
-                      {team.onIce ? (team.isChallenger ? 'Challenger' : (team.isGoalie ? 'Goalies' : 'Defending')) : 'Waiting'}
+                      {team.onIce ? (team.isChallenger ? 'Challenger' : (team.isGoalie ? '-' : 'Defending')) : 'Waiting'}
                     </div>
                   </div>
                 </div>
@@ -605,7 +608,12 @@ const HockeyScoreboard: React.FC = () => {
                           width: '80px', // Fixed width
                           height: '64px',
                           borderRadius: '4px',
-                          flexShrink: 0 // Prevent shrinking when team name is long
+                          flexShrink: 0, // Prevent shrinking when team name is long
+                          cursor: 'pointer' // Add this to indicate it's clickable
+                        }}
+                        onClick={() => {
+                          setEditingScore(team.id);
+                          setTempScore(team.score);
                         }}
                       >
                         {team.score}
@@ -685,8 +693,8 @@ const HockeyScoreboard: React.FC = () => {
               style={{ 
                 backgroundColor: scoreHistory.length === 0 ? '#555' : colors.bgLight,
                 color: scoreHistory.length === 0 ? '#999' : colors.yellow,
-                border: `2px solid ${scoreHistory.length === 0 ? '#555' : colors.yellow}`,
-                opacity: scoreHistory.length === 0 ? 0.7 : 1,
+                border: `1px solid ${scoreHistory.length === 0 ? '#555' : colors.yellow}`,
+                opacity: scoreHistory.length === 0 ? 0.4 : 1,
                 cursor: scoreHistory.length === 0 ? 'not-allowed' : 'pointer'
               }}
             >
@@ -709,6 +717,20 @@ const HockeyScoreboard: React.FC = () => {
             style={{ color: colors.yellow }}
           >
             Setup Teams
+          </button>
+        </div>
+
+        <div className="text-center mt-8 mb-4">
+          <button
+            onClick={resetGame}
+            className="p-4 rounded-lg text-center text-base font-bold"
+            style={{ 
+              backgroundColor: 'transparent',
+              color: colors.yellow, 
+              border: `2px solid ${colors.yellow}`
+            }}
+          >
+            Reset Entire Game
           </button>
         </div>
         
@@ -828,8 +850,7 @@ const HockeyScoreboard: React.FC = () => {
                 Save Teams
               </button>
 
-              {/* Reset game button at bottom */}
-              <div className="text-center mt-8 mb-4">
+                <div className="text-center mt-8 mb-4">
                 <button
                   onClick={resetGame}
                   className="p-4 rounded-lg text-center text-base font-bold"
