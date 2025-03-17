@@ -31,7 +31,7 @@ export default function RootLayout({
     <html lang="en" className={`${jakarta.variable} ${orbitron.variable}`}>
       <head>
         <link rel="icon" href="/favicon.ico" />
-        <link rel="apple-touch-icon" href="/icon-192x192.png" />
+        <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
       </head>
       <body>{children}</body>
     </html>
