@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
 import { Bell, BellOff, Plus, Minus, Play, Pause, RefreshCw, Undo2, Check } from 'lucide-react';
+import dynamic from 'next/dynamic';
 
 // Type definitions
 interface Team {
@@ -25,9 +26,32 @@ interface HistoryState {
 const saveToLocalStorage = <T extends {}>(key: string, value: T): void => {
   if (typeof window !== 'undefined') {
     try {
-      localStorage.setItem(key, JSON.stringify(value));
+      const serialized = JSON.stringify(value);
+      // Check size before attempting to save
+      const size = new Blob([serialized]).size;
+      if (size > 4000000) { // 4MB limit
+        console.warn(`Data for ${key} too large (${size} bytes), attempting cleanup`);
+        if (key === 'hockey_score_history') {
+          // For score history, save only the last entry
+          const lastEntry = Array.isArray(value) ? [value[0]] : value;
+          localStorage.setItem(key, JSON.stringify(lastEntry));
+        } else {
+          localStorage.setItem(key, serialized);
+        }
+      } else {
+        localStorage.setItem(key, serialized);
+      }
     } catch (e) {
       console.error('Error saving to localStorage:', e);
+      if (e.name === 'QuotaExceededError') {
+        // Clear old data and try again
+        try {
+          localStorage.clear();
+          localStorage.setItem(key, JSON.stringify(value));
+        } catch (retryError) {
+          console.error('Failed to save even after clearing storage:', retryError);
+        }
+      }
     }
   }
 };
@@ -47,12 +71,43 @@ const loadFromLocalStorage = <T extends {}>(key: string, defaultValue: T): T => 
   return defaultValue;
 };
 
-// Base64 encoded default icons
+// Default icons
 const DEFAULT_ICONS = {
-  rats: "/rat-logo.png",
-  ginkos: "/ginko.svg",
-  sweetNLow: "/sweet-n-low.svg",
-  goalies: "/goalie.png"
+  rats: "/rats-jersey.png",
+  ginkos: "/ginkos-jersey.png",
+  sweetNLow: "/sweet-jersey.png",
+  goalies: "/goalies-mask.png"
+} as const;
+
+const UploadedImage = dynamic(() => Promise.resolve(({ src, alt, className }: { src: string; alt: string; className: string }) => (
+  // eslint-disable-next-line @next/next/no-img-element
+  <img src={src} alt={alt} className={className} />
+)), { ssr: false });
+
+const TeamLogoImage: React.FC<{ logo: string; name: string }> = ({ logo, name }) => {
+  // For default icons (starting with '/') use Next Image
+  if (logo.startsWith('/')) {
+    return (
+      <div className="relative w-full h-full">
+        <Image
+          src={logo}
+          alt={`${name} logo`}
+          fill
+          sizes="48px"
+          style={{objectFit: 'cover'}}
+        />
+      </div>
+    );
+  }
+  
+  // For uploaded images (data URLs) use client-side only rendering
+  return (
+    <UploadedImage 
+      src={logo} 
+      alt={`${name} logo`} 
+      className="w-full h-full object-cover" 
+    />
+  );
 };
 
 interface TeamLogoProps {
@@ -63,7 +118,7 @@ interface TeamLogoProps {
 const TeamLogo: React.FC<TeamLogoProps> = ({ team, updateTeamLogo }) => {
   return (
     <div
-      className="w-10 h-10 rounded-full ml-2 flex items-center justify-center bg-gray-700 overflow-hidden cursor-pointer"
+      className="w-10 h-10 rounded-full ml-2 flex items-center justify-center overflow-hidden cursor-pointer"
       onClick={() => {
         const input = document.createElement('input');
         input.type = 'file';
@@ -78,20 +133,7 @@ const TeamLogo: React.FC<TeamLogoProps> = ({ team, updateTeamLogo }) => {
       }}
     >
       {team.logo ? (
-        team.logo.startsWith('data:') ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={team.logo} alt={`${team.name} logo`} className="w-full h-full object-cover" />
-        ) : (
-          <div className="relative w-full h-full">
-            <Image
-              src={team.logo}
-              alt={`${team.name} logo`}
-              fill
-              sizes="40px"
-              style={{objectFit: 'cover'}}
-            />
-          </div>
-        )
+        <TeamLogoImage logo={team.logo} name={team.name} />
       ) : (
         <span>+</span>
       )}
@@ -266,23 +308,41 @@ const HockeyScoreboard: React.FC = () => {
   
   // Save current state to history before making changes (for undo functionality)
   const addToHistory = (): void => {
-    // Limit history to last 15 actions
-    setScoreHistory(prev => {
-      const newHistory = [
-        {
-          teams: JSON.parse(JSON.stringify(teams)),
-          period: period
-        },
-        ...prev
-      ];
-      
-      // Keep only the last 15 entries
-      if (newHistory.length > 15) {
-        return newHistory.slice(0, 15);
-      }
-      
-      return newHistory;
-    });
+    try {
+      const currentState = {
+        teams: JSON.parse(JSON.stringify(teams)),
+        period: period
+      };
+  
+      setScoreHistory(prev => {
+        // Only add if it's different from the last entry
+        if (prev.length > 0 && 
+            JSON.stringify(prev[0].teams) === JSON.stringify(currentState.teams) && 
+            prev[0].period === currentState.period) {
+          return prev;
+        }
+  
+        const newHistory = [currentState, ...prev].slice(0, 5); // Keep only last 5 entries
+        
+        try {
+          localStorage.setItem('hockey_score_history', JSON.stringify(newHistory));
+        } catch (storageError) {
+          console.warn('Storage error, reducing history size:', storageError);
+          const reducedHistory = [currentState, ...(prev.slice(0, 2))]; // Keep only 3 entries
+          localStorage.setItem('hockey_score_history', JSON.stringify(reducedHistory));
+          return reducedHistory;
+        }
+  
+        return newHistory;
+      });
+    } catch (error) {
+      console.error('Error adding to history:', error);
+      // Fallback to just storing current state
+      setScoreHistory([{
+        teams: JSON.parse(JSON.stringify(teams)),
+        period: period
+      }]);
+    }
   };
   
   // Undo last action
@@ -411,10 +471,16 @@ const HockeyScoreboard: React.FC = () => {
   // Reset entire game
   const resetGame = (): void => {
     if (window.confirm("Are you sure you want to reset the entire game? All scores and history will be lost.")) {
+      // Clear all localStorage
+      localStorage.clear();
+      
+      // Reset all state
       setTeams(defaultTeams);
       setPeriod(1);
       setScoreHistory([]);
       resetTimer();
+      setIsRunning(false);
+      setSoundEnabled(true);
     }
   };
 
@@ -424,7 +490,7 @@ const HockeyScoreboard: React.FC = () => {
       <header className="text-center p-4 border-b border-yellow-400 flex items-center justify-center">
         <div className="w-10 h-10 mr-2 relative">
           <Image 
-            src="/leach.jpg" 
+            src="/leach-logo.png" 
             alt="Leach Hockey Logo" 
             fill
             sizes="(max-width: 768px) 40px, 40px"
@@ -566,12 +632,11 @@ const HockeyScoreboard: React.FC = () => {
                 }}
               >
                 <div className="flex items-center">
-                  <div 
-                    className="w-12 h-12 rounded-full mr-3 flex items-center justify-center bg-gray-700 overflow-hidden"
-                    style={{ cursor: showTeamSetup ? 'pointer' : 'default' }}
+                <div
+                    className="w-12 h-12 rounded-full mr-3 flex items-center justify-center overflow-hidden"
+                    style={{ cursor: showTeamSetup ? 'pointer' : 'default', background: 'transparent' }}
                     onClick={() => {
-                      if (!showTeamSetup) return; // Only allow logo updates in setup mode
-                      
+                      if (!showTeamSetup) return;
                       const input = document.createElement('input');
                       input.type = 'file';
                       input.accept = 'image/*';
@@ -585,21 +650,7 @@ const HockeyScoreboard: React.FC = () => {
                     }}
                   >
                     {team.logo ? (
-                      team.logo.startsWith('data:') ? (
-                        // For data URLs (uploaded images), we still use img tag as Next Image doesn't support them
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={team.logo} alt={`${team.name} logo`} className="w-full h-full object-cover" />
-                      ) : (
-                        <div className="relative w-full h-full">
-                          <Image 
-                            src={team.logo} 
-                            alt={`${team.name} logo`} 
-                            fill 
-                            sizes="48px"
-                            style={{objectFit: 'cover'}}
-                          />
-                        </div>
-                      )
+                      <TeamLogoImage logo={team.logo} name={team.name} />
                     ) : (
                       <span className="text-xl">{showTeamSetup ? '+' : ''}</span>
                     )}
@@ -628,6 +679,7 @@ const HockeyScoreboard: React.FC = () => {
                     </div>
                   </div>
                 </div>
+
                 {/* Editable score box */}
                 <div className="flex items-center">
                   {editingScore === team.id ? (
@@ -665,7 +717,7 @@ const HockeyScoreboard: React.FC = () => {
                           color: 'white',
                           backgroundColor: colors.black,
                           border: `2px solid ${colors.yellow}`,
-                          width: '80px', // Fixed width
+                          width: '64px', // Fixed width
                           height: '64px',
                           borderRadius: '4px',
                           flexShrink: 0, // Prevent shrinking when team name is long
@@ -701,7 +753,7 @@ const HockeyScoreboard: React.FC = () => {
               backgroundColor: colors.black, 
               color: 'white',
               border: `2px solid ${colors.yellow}`,
-              minWidth: '120px',
+              minWidth: '160px',
               textAlign: 'center'
             }}>
               Period: <span className="font-bold">{period}</span>
@@ -749,19 +801,23 @@ const HockeyScoreboard: React.FC = () => {
             <button
               onClick={undoLastAction}
               disabled={scoreHistory.length === 0}
-              className="p-3 rounded-lg text-center col-span-2 mt-2 text-base font-bold flex items-center justify-center"
-              style={{ 
-                backgroundColor: scoreHistory.length === 0 ? '#555' : colors.bgLight,
+              className={`p-3 rounded-lg text-center col-span-2 mt-2 text-base font-bold flex items-center justify-center ${
+                scoreHistory.length === 0 ? 'opacity-40' : 'opacity-100'
+              }`}
+              style={{
+                backgroundColor: colors.bgLight,
                 color: scoreHistory.length === 0 ? '#999' : colors.yellow,
                 border: `1px solid ${scoreHistory.length === 0 ? '#555' : colors.yellow}`,
-                opacity: scoreHistory.length === 0 ? 0.4 : 1,
                 cursor: scoreHistory.length === 0 ? 'not-allowed' : 'pointer'
               }}
             >
               <Undo2 size={20} className="mr-2" />
               Undo Last Scoring Action
               {scoreHistory.length > 0 && (
-                <span className="ml-2 px-2 py-0.5 rounded-full text-sm" style={{ backgroundColor: colors.yellow, color: colors.black }}>
+                <span 
+                  className="ml-2 px-2 py-0.5 rounded-full text-sm" 
+                  style={{ backgroundColor: colors.yellow, color: colors.black }}
+                >
                   {scoreHistory.length}
                 </span>
               )}
