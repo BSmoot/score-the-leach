@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import Image from 'next/image';
-import { Bell, BellOff, Plus, Minus, Play, Pause, RefreshCw, Undo2, Check } from 'lucide-react';
+import { Bell, BellOff, Plus, Minus, Play, Pause, RefreshCw, Undo2, Check, X } from 'lucide-react';
 import dynamic from 'next/dynamic';
 
 // Type definitions
@@ -134,6 +134,9 @@ const TeamLogo: React.FC<TeamLogoProps> = ({ team, updateTeamLogo }) => {
 const HockeyScoreboard: React.FC = () => {
   // Hydration state management
   const [isClient, setIsClient] = useState<boolean>(false);
+  
+  // New state for edit mode
+  const [editMode, setEditMode] = useState<boolean>(false);
 
   // Stable references with useMemo
   const colors = useMemo(() => ({
@@ -159,10 +162,14 @@ const HockeyScoreboard: React.FC = () => {
   const [soundEnabled, setSoundEnabled] = useState<boolean>(true);
   const [teams, setTeams] = useState<Team[]>(defaultTeams);
   const [scoreHistory, setScoreHistory] = useState<HistoryState[]>([]);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [editingScore, setEditingScore] = useState<number | null>(null);
-  const [tempScore, setTempScore] = useState<number>(0);
   const [showTeamSetup, setShowTeamSetup] = useState<boolean>(false);
   const [isMobile, setIsMobile] = useState<boolean>(false);
+  
+  // Store original values for canceling edits
+  const [originalTeams, setOriginalTeams] = useState<Team[]>([]);
+  const [originalPeriod, setOriginalPeriod] = useState<number>(1);
 
   // Refs
   const buzzerRef = useRef<HTMLAudioElement | null>(null);
@@ -368,6 +375,29 @@ const HockeyScoreboard: React.FC = () => {
     setSoundEnabled(!soundEnabled);
   };
   
+  // Functions to enable/disable edit mode
+  const enableEditMode = (): void => {
+    if (window.confirm("Are you sure you want to directly edit the scoreboard?")) {
+      // Store original values for cancellation
+      setOriginalTeams(JSON.parse(JSON.stringify(teams)));
+      setOriginalPeriod(period);
+      setEditMode(true);
+    }
+  };
+  
+  const confirmEdits = (): void => {
+    setEditMode(false);
+    setEditingScore(null);
+  };
+  
+  const cancelEdits = (): void => {
+    // Restore original values
+    setTeams(originalTeams);
+    setPeriod(originalPeriod);
+    setEditMode(false);
+    setEditingScore(null);
+  };
+  
   // Increment period and reset timer
   const incrementPeriod = (): void => {
     setPeriod(prev => prev + 1);
@@ -503,15 +533,11 @@ const HockeyScoreboard: React.FC = () => {
     incrementPeriod();
   };
   
-  // Save edited score
-  const saveEditedScore = (teamId: number): void => {
-    // Save current state to history before making changes
-    addToHistory();
-    
+  // Update team score
+  const updateTeamScore = (teamId: number, newScore: number): void => {
     setTeams(teams.map(team => 
-      team.id === teamId ? { ...team, score: parseInt(tempScore.toString()) || 0 } : team
+      team.id === teamId ? { ...team, score: newScore } : team
     ));
-    setEditingScore(null);
   };
   
   // Update team name
@@ -583,7 +609,7 @@ const HockeyScoreboard: React.FC = () => {
       {/* Main content */}
       <main className="flex-1 p-4">
         {/* Timer section - made larger and centered */}
-        <div className="flex flex-col items-center justify-center mb-4">
+        <div className="flex flex-col items-center justify-center mb-4 relative">
           {/* Hockey-style clock */}
           <div 
             className="w-full max-w-md flex justify-center mb-4"
@@ -693,6 +719,42 @@ const HockeyScoreboard: React.FC = () => {
               {soundEnabled ? <Bell size={24} /> : <BellOff size={24} />}
             </button>
           </div>
+          
+          {/* New instruction text */}
+          <p className="text-xs text-center mt-2 mb-4 max-w-md" style={{ color: colors.yellow }}>
+            After each match, use the buttons below the scoreboard to input the result. Scores, match count, and clock will auto-update.
+          </p>
+          
+          {/* Edit mode overlay */}
+          {editMode && (
+            <div 
+              className="absolute inset-0 flex items-center justify-center" 
+              style={{ backgroundColor: 'rgba(42, 42, 42, 0.8)', zIndex: 50 }}
+            >
+              <div className="flex space-x-4">
+                <button
+                  onClick={confirmEdits}
+                  className="flex items-center justify-center p-3 rounded-full"
+                  style={{ backgroundColor: colors.yellow, color: colors.black }}
+                >
+                  <Check size={24} className="mr-2" />
+                  Confirm Edits
+                </button>
+                <button
+                  onClick={cancelEdits}
+                  className="flex items-center justify-center p-3 rounded-full"
+                  style={{ 
+                    backgroundColor: 'transparent', 
+                    color: colors.yellow,
+                    border: `2px solid ${colors.yellow}`
+                  }}
+                >
+                  <X size={24} className="mr-2" />
+                  Cancel Edits
+                </button>
+              </div>
+            </div>
+          )}
         </div>
   
         {/* Teams scoreboard */}
@@ -744,6 +806,7 @@ const HockeyScoreboard: React.FC = () => {
                         width: '100%',  // Changed from dynamic to 100%
                         color: colors.yellow
                       }}
+                      disabled={!showTeamSetup}
                     />
                     <div 
                       className="text-sm font-medium mt-1 px-2 py-0 rounded-full inline-flex items-center justify-center"
@@ -761,13 +824,16 @@ const HockeyScoreboard: React.FC = () => {
 
                 {/* Editable score box */}
                 <div className="flex items-center">
-                  {editingScore === team.id ? (
+                  {editMode ? (
                     <div className="flex items-center">
                       <input
                         type="number"
-                        value={tempScore}
-                        onChange={(e) => setTempScore(parseInt(e.target.value) || 0)}
-                        className="w-16 h-12 text-3xl font-bold text-center bg-transparent border-2 outline-none mr-2"
+                        value={team.score}
+                        onChange={(e) => {
+                          const newScore = parseInt(e.target.value) || 0;
+                          updateTeamScore(team.id, newScore);
+                        }}
+                        className="w-16 h-12 text-3xl font-bold text-center bg-transparent border-2 outline-none"
                         style={{ 
                           color: 'white',
                           borderColor: colors.yellow,
@@ -776,40 +842,21 @@ const HockeyScoreboard: React.FC = () => {
                         min="0"
                         max="999"
                       />
-                      <button
-                        onClick={() => saveEditedScore(team.id)}
-                        className="p-2 rounded-full"
-                        style={{ 
-                          backgroundColor: colors.bgLight,
-                          color: colors.yellow,
-                          border: `2px solid ${colors.yellow}`
-                        }}
-                      >
-                        <Check size={20} />
-                      </button>
                     </div>
                   ) : (
-                    <div className="flex items-center">
-                      <div 
-                        className="text-4xl font-bold flex items-center justify-center"
-                        style={{ 
-                          color: 'white',
-                          backgroundColor: colors.black,
-                          border: `2px solid ${colors.yellow}`,
-                          width: '64px', // Fixed width
-                          height: '64px',
-                          borderRadius: '4px',
-                          flexShrink: 0, // Prevent shrinking when team name is long
-                          cursor: 'pointer' // Add this to indicate it's clickable
-                        }}
-                        onClick={() => {
-                          setEditingScore(team.id);
-                          setTempScore(team.score);
-                        }}
-                      >
-                        {team.score}
-                        
-                      </div>
+                    <div 
+                      className="text-4xl font-bold flex items-center justify-center"
+                      style={{ 
+                        color: 'white',
+                        backgroundColor: colors.black,
+                        border: `2px solid ${colors.yellow}`,
+                        width: '64px', // Fixed width
+                        height: '64px',
+                        borderRadius: '4px',
+                        flexShrink: 0, // Prevent shrinking when team name is long
+                      }}
+                    >
+                      {team.score}
                     </div>
                   )}
                 </div>
@@ -818,13 +865,20 @@ const HockeyScoreboard: React.FC = () => {
           </div>
         </div>
   
-        {/* Period counter and controls - MOVED BELOW TEAM SCORE CARDS */}
+        {/* Period counter and controls - Changed from "Period" to "Match" */}
         <div className="flex justify-center items-center px-4 py-2 mb-6" style={{ backgroundColor: colors.bgLight }}>
           <div className="flex items-center">
             <button 
               onClick={decrementPeriod}
               className="p-2 rounded-l-lg"
-              style={{ backgroundColor: colors.yellow, color: colors.black }}
+              style={{ 
+                backgroundColor: editMode ? colors.yellow : colors.black, 
+                color: editMode ? colors.black : colors.yellow,
+                border: !editMode ? `2px solid ${colors.yellow}` : 'none',
+                cursor: editMode ? 'pointer' : 'not-allowed',
+                opacity: editMode ? 1 : 0.5
+              }}
+              disabled={!editMode}
             >
               <Minus size={20} />
             </button>
@@ -835,12 +889,19 @@ const HockeyScoreboard: React.FC = () => {
               minWidth: '160px',
               textAlign: 'center'
             }}>
-              Period: <span className="font-bold">{period}</span>
+              Match: <span className="font-bold">{period}</span>
             </div>
             <button 
               onClick={incrementPeriod}
               className="p-2 rounded-r-lg"
-              style={{ backgroundColor: colors.yellow, color: colors.black }}
+              style={{ 
+                backgroundColor: editMode ? colors.yellow : colors.black, 
+                color: editMode ? colors.black : colors.yellow,
+                border: !editMode ? `2px solid ${colors.yellow}` : 'none',
+                cursor: editMode ? 'pointer' : 'not-allowed',
+                opacity: editMode ? 1 : 0.5
+              }}
+              disabled={!editMode}
             >
               <Plus size={20} />
             </button>
@@ -849,7 +910,13 @@ const HockeyScoreboard: React.FC = () => {
         
         {/* Score buttons */}
         <div className="mb-6">
-          <h2 className="text-2xl font-semibold mb-3 text-center">INPUT SCORES:</h2>
+          <h2 className="text-2xl font-semibold mb-2 text-center">MATCH RESULT:</h2>
+          
+          {/* New instruction text */}
+          <p className="text-xs text-center mb-3" style={{ color: colors.yellow }}>
+            Indicate the winner below and reset the clock for the next match:
+          </p>
+          
           <div className="grid grid-cols-2 gap-4">
             {teams.filter(team => team.onIce && !team.isGoalie).map((team) => (
               <button
@@ -860,8 +927,9 @@ const HockeyScoreboard: React.FC = () => {
                   backgroundColor: colors.yellow, 
                   color: colors.black
                 }}
+                disabled={editMode}
               >
-                {team.name} Scores
+                {team.name} Goal
               </button>
             ))}
             <button
@@ -870,24 +938,27 @@ const HockeyScoreboard: React.FC = () => {
               style={{ 
                 backgroundColor: colors.bgLight, 
                 color: colors.yellow, 
-                border: `2px solid ${colors.yellow}`
+                border: `2px solid ${colors.yellow}`,
+                opacity: editMode ? 0.5 : 1,
+                cursor: editMode ? 'not-allowed' : 'pointer'
               }}
+              disabled={editMode}
             >
-              No Score / Timeout
+              No Goals
             </button>
             
             {/* Undo button */}
             <button
               onClick={undoLastAction}
-              disabled={scoreHistory.length === 0}
+              disabled={scoreHistory.length === 0 || editMode}
               className={`p-3 rounded-lg text-center col-span-2 mt-2 text-base font-bold flex items-center justify-center ${
-                scoreHistory.length === 0 ? 'opacity-40' : 'opacity-100'
+                scoreHistory.length === 0 || editMode ? 'opacity-40' : 'opacity-100'
               }`}
               style={{
                 backgroundColor: colors.bgLight,
-                color: scoreHistory.length === 0 ? '#999' : colors.yellow,
-                border: `1px solid ${scoreHistory.length === 0 ? '#555' : colors.yellow}`,
-                cursor: scoreHistory.length === 0 ? 'not-allowed' : 'pointer'
+                color: scoreHistory.length === 0 || editMode ? '#999' : colors.yellow,
+                border: `1px solid ${scoreHistory.length === 0 || editMode ? '#555' : colors.yellow}`,
+                cursor: scoreHistory.length === 0 || editMode ? 'not-allowed' : 'pointer'
               }}
             >
               <Undo2 size={20} className="mr-2" />
@@ -904,14 +975,31 @@ const HockeyScoreboard: React.FC = () => {
           </div>
         </div>
         
-        {/* Team Setup link */}
-        <div className="text-center mb-6">
+        {/* Team Setup and Edit Scores links */}
+        <div className="text-center mb-3">
           <button
             onClick={() => setShowTeamSetup(true)}
             className="text-base underline"
             style={{ color: colors.yellow }}
+            disabled={editMode}
           >
             Set Initial Team Status
+          </button>
+        </div>
+        
+        {/* New Edit Scores button */}
+        <div className="text-center mb-6">
+          <button
+            onClick={enableEditMode}
+            className="text-base underline"
+            style={{ 
+              color: colors.yellow,
+              opacity: editMode ? 0.5 : 1,
+              cursor: editMode ? 'not-allowed' : 'pointer'
+            }}
+            disabled={editMode}
+          >
+            Edit Scores & Match Count
           </button>
         </div>
 
@@ -922,8 +1010,11 @@ const HockeyScoreboard: React.FC = () => {
             style={{ 
               backgroundColor: 'transparent',
               color: colors.yellow, 
-              border: `2px solid ${colors.yellow}`
+              border: `2px solid ${colors.yellow}`,
+              opacity: editMode ? 0.5 : 1,
+              cursor: editMode ? 'not-allowed' : 'pointer'
             }}
+            disabled={editMode}
           >
             Reset Entire Game
           </button>

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import Image from 'next/image';
 import { Bell, BellOff, Plus, Minus, Play, Pause, RefreshCw, Undo2, Check } from 'lucide-react';
 import dynamic from 'next/dynamic';
@@ -21,9 +21,8 @@ interface HistoryState {
   period: number;
 }
 
-// Save state to localStorage
-// eslint-disable-next-line @typescript-eslint/no-empty-object-type
-const saveToLocalStorage = <T extends {}>(key: string, value: T): void => {
+// Save state to localStorage with improved type safety and error handling
+function saveToLocalStorage<T>(key: string, value: T): void {
   if (typeof window !== 'undefined') {
     try {
       const serialized = JSON.stringify(value);
@@ -41,9 +40,9 @@ const saveToLocalStorage = <T extends {}>(key: string, value: T): void => {
       } else {
         localStorage.setItem(key, serialized);
       }
-    } catch (e) {
+    } catch (e: unknown) {
       console.error('Error saving to localStorage:', e);
-      if (e.name === 'QuotaExceededError') {
+      if (e instanceof Error && e.name === 'QuotaExceededError') {
         // Clear old data and try again
         try {
           localStorage.clear();
@@ -56,22 +55,10 @@ const saveToLocalStorage = <T extends {}>(key: string, value: T): void => {
   }
 };
 
-// Load state from localStorage
-// eslint-disable-next-line @typescript-eslint/no-empty-object-type
-const loadFromLocalStorage = <T extends {}>(key: string, defaultValue: T): T => {
-  if (typeof window !== 'undefined') {
-    try {
-      const item = localStorage.getItem(key);
-      return item ? JSON.parse(item) as T : defaultValue;
-    } catch (e) {
-      console.error('Error loading from localStorage:', e);
-      return defaultValue;
-    }
-  }
-  return defaultValue;
-};
+// Load state from localStorage with improved type safety
+// Note: This function is used indirectly through the hydration process
 
-// Default icons
+// Default icons with proper type definition
 const DEFAULT_ICONS = {
   rats: "/rats-jersey.png",
   ginkos: "/ginkos-jersey.png",
@@ -79,11 +66,13 @@ const DEFAULT_ICONS = {
   goalies: "/goalies-mask.png"
 } as const;
 
+// Dynamic image handling with proper types
 const UploadedImage = dynamic(() => Promise.resolve(({ src, alt, className }: { src: string; alt: string; className: string }) => (
   // eslint-disable-next-line @next/next/no-img-element
   <img src={src} alt={alt} className={className} />
 )), { ssr: false });
 
+// TeamLogoImage component with proper types
 const TeamLogoImage: React.FC<{ logo: string; name: string }> = ({ logo, name }) => {
   // For default icons (starting with '/') use Next Image
   if (logo.startsWith('/')) {
@@ -143,69 +132,131 @@ const TeamLogo: React.FC<TeamLogoProps> = ({ team, updateTeamLogo }) => {
 
 // The Hockey Scoreboard component
 const HockeyScoreboard: React.FC = () => {
-  // Colors
-  const colors = {
+  // Hydration state management
+  const [isClient, setIsClient] = useState<boolean>(false);
+
+  // Stable references with useMemo
+  const colors = useMemo(() => ({
     yellow: '#FECB00', // Updated yellow color
     black: '#2A2A2A',  // Lighter rat black/gray-black
     bgLight: '#3A3A3A', // Even lighter background for certain elements
-  };
-  
-  // Game state with localStorage persistence
-  const [minutes, setMinutes] = useState<number>(() => loadFromLocalStorage<number>('hockey_minutes', 5));
-  const [seconds, setSeconds] = useState<number>(() => loadFromLocalStorage<number>('hockey_seconds', 0));
-  const [time, setTime] = useState<number>(() => loadFromLocalStorage<number>('hockey_time', 5 * 60));
-  const [isRunning, setIsRunning] = useState<boolean>(false); // Don't load running state from storage
-  const [period, setPeriod] = useState<number>(() => loadFromLocalStorage<number>('hockey_period', 1));
-  const [soundEnabled, setSoundEnabled] = useState<boolean>(() => loadFromLocalStorage<boolean>('hockey_sound', true));
-  
-  // Define default teams with pre-set icons
-  const defaultTeams: Team[] = [
+  }), []);
+
+  // Define default teams with pre-set icons using useMemo
+  const defaultTeams: Team[] = useMemo(() => [
     { id: 1, name: 'Rats', logo: DEFAULT_ICONS.rats, score: 0, onIce: true, isChallenger: true },
     { id: 2, name: 'Ginkos', logo: DEFAULT_ICONS.ginkos, score: 0, onIce: true, isChallenger: false },
     { id: 3, name: 'Sweet-N-Low', logo: DEFAULT_ICONS.sweetNLow, score: 0, onIce: false, isChallenger: false },
     { id: 4, name: 'Goalies', logo: DEFAULT_ICONS.goalies, score: 0, onIce: true, isChallenger: false, isGoalie: true }
-  ];
-  
-  const [teams, setTeams] = useState<Team[]>(() => loadFromLocalStorage<Team[]>('hockey_teams', defaultTeams));
-  
-  // Add state for tracking score history (for undo functionality)
-  const [scoreHistory, setScoreHistory] = useState<HistoryState[]>(() => loadFromLocalStorage<HistoryState[]>('hockey_score_history', []));
-  
-  // Add state for editing score
+  ], []);
+
+  // Hydration-safe state initialization
+  const [minutes, setMinutes] = useState<number>(5);
+  const [seconds, setSeconds] = useState<number>(0);
+  const [time, setTime] = useState<number>(5 * 60);
+  const [isRunning, setIsRunning] = useState<boolean>(false);
+  const [period, setPeriod] = useState<number>(1);
+  const [soundEnabled, setSoundEnabled] = useState<boolean>(true);
+  const [teams, setTeams] = useState<Team[]>(defaultTeams);
+  const [scoreHistory, setScoreHistory] = useState<HistoryState[]>([]);
   const [editingScore, setEditingScore] = useState<number | null>(null);
   const [tempScore, setTempScore] = useState<number>(0);
-  
-  // Save state changes to localStorage
-  useEffect(() => saveToLocalStorage('hockey_minutes', minutes), [minutes]);
-  useEffect(() => saveToLocalStorage('hockey_seconds', seconds), [seconds]);
-  useEffect(() => saveToLocalStorage('hockey_time', time), [time]);
-  useEffect(() => saveToLocalStorage('hockey_period', period), [period]);
-  useEffect(() => saveToLocalStorage('hockey_sound', soundEnabled), [soundEnabled]);
-  useEffect(() => saveToLocalStorage('hockey_teams', teams), [teams]);
-  useEffect(() => saveToLocalStorage('hockey_score_history', scoreHistory), [scoreHistory]);
-  
+  const [showTeamSetup, setShowTeamSetup] = useState<boolean>(false);
+  const [isMobile, setIsMobile] = useState<boolean>(false);
+
+  // Refs
   const buzzerRef = useRef<HTMLAudioElement | null>(null);
-  
-  const isMobileOrTablet = () => {
-    if (typeof window === 'undefined') return false;
-    return window.innerWidth <= 1024; // Consider tablets as mobile
-  };
 
-  const [isMobile, setIsMobile] = useState(false);
-
-  // Add useEffect to update mobile status
+  // Client-side effect for initialization and hydration
   useEffect(() => {
-    const checkMobile = () => {
-      setIsMobile(isMobileOrTablet());
+    setIsClient(true);
+
+    // Hydrate from localStorage only on client
+    const hydrateFromStorage = () => {
+      try {
+        const storedMinutes = localStorage.getItem('hockey_minutes');
+        const storedSeconds = localStorage.getItem('hockey_seconds');
+        const storedTime = localStorage.getItem('hockey_time');
+        const storedPeriod = localStorage.getItem('hockey_period');
+        const storedSoundEnabled = localStorage.getItem('hockey_sound');
+        const storedTeams = localStorage.getItem('hockey_teams');
+        const storedScoreHistory = localStorage.getItem('hockey_score_history');
+
+        // Update state with localStorage values
+        if (storedMinutes) setMinutes(parseInt(storedMinutes));
+        if (storedSeconds) setSeconds(parseInt(storedSeconds));
+        if (storedTime) setTime(parseInt(storedTime));
+        if (storedPeriod) setPeriod(parseInt(storedPeriod));
+        if (storedSoundEnabled) setSoundEnabled(storedSoundEnabled === 'true');
+        if (storedTeams) setTeams(JSON.parse(storedTeams));
+        if (storedScoreHistory) setScoreHistory(JSON.parse(storedScoreHistory));
+      } catch (error) {
+        console.error('Error hydrating from localStorage', error);
+      }
     };
-    
+
+    // Mobile check
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth <= 1024);
+    };
+
+    // Run hydration and mobile check
+    hydrateFromStorage();
     checkMobile();
+
+    // Add resize listener
     window.addEventListener('resize', checkMobile);
+
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
+  // Save state changes to localStorage
+  useEffect(() => {
+    if (isClient) {
+      saveToLocalStorage('hockey_minutes', minutes);
+    }
+  }, [minutes, isClient]);
+  
+  useEffect(() => {
+    if (isClient) {
+      saveToLocalStorage('hockey_seconds', seconds);
+    }
+  }, [seconds, isClient]);
+  
+  useEffect(() => {
+    if (isClient) {
+      saveToLocalStorage('hockey_time', time);
+    }
+  }, [time, isClient]);
+  
+  useEffect(() => {
+    if (isClient) {
+      saveToLocalStorage('hockey_period', period);
+    }
+  }, [period, isClient]);
+  
+  useEffect(() => {
+    if (isClient) {
+      saveToLocalStorage('hockey_sound', soundEnabled);
+    }
+  }, [soundEnabled, isClient]);
+  
+  useEffect(() => {
+    if (isClient) {
+      saveToLocalStorage('hockey_teams', teams);
+    }
+  }, [teams, isClient]);
+  
+  useEffect(() => {
+    if (isClient) {
+      saveToLocalStorage('hockey_score_history', scoreHistory);
+    }
+  }, [scoreHistory, isClient]);
+
   // Initialize buzzer sound with better format handling
   useEffect(() => {
+    if (!isClient) return;
+
     const tryFormats = [
       '/buzzer.mp3',
       '/buzzer.ogg',
@@ -240,10 +291,12 @@ const HockeyScoreboard: React.FC = () => {
         buzzerRef.current = null;
       }
     };
-  }, []);
+  }, [isClient]);
   
   // Timer logic
   useEffect(() => {
+    if (!isClient) return;
+    
     let interval: NodeJS.Timeout | null = null;
     if (isRunning && time > 0) {
       interval = setInterval(() => {
@@ -282,7 +335,7 @@ const HockeyScoreboard: React.FC = () => {
     return () => {
       if (interval) clearInterval(interval);
     };
-  }, [isRunning, time, soundEnabled]);
+  }, [isRunning, time, soundEnabled, isClient]);
   
   // Reset timer to 5 minutes
   const resetTimer = (): void => {
@@ -294,14 +347,16 @@ const HockeyScoreboard: React.FC = () => {
   
   // Update time when minutes or seconds change
   useEffect(() => {
+    if (!isClient) return;
     setTime(minutes * 60 + seconds);
-  }, [minutes, seconds]);
+  }, [minutes, seconds, isClient]);
   
   // Update minutes and seconds when time changes
   useEffect(() => {
+    if (!isClient) return;
     setMinutes(Math.floor(time / 60));
     setSeconds(time % 60);
-  }, [time]);
+  }, [time, isClient]);
   
   // Toggle timer pause/play
   const toggleTimer = (): void => {
@@ -343,11 +398,15 @@ const HockeyScoreboard: React.FC = () => {
         const newHistory = [currentState, ...prev].slice(0, 5); // Keep only last 5 entries
         
         try {
-          localStorage.setItem('hockey_score_history', JSON.stringify(newHistory));
+          if (isClient) {
+            localStorage.setItem('hockey_score_history', JSON.stringify(newHistory));
+          }
         } catch (storageError) {
           console.warn('Storage error, reducing history size:', storageError);
           const reducedHistory = [currentState, ...(prev.slice(0, 2))]; // Keep only 3 entries
-          localStorage.setItem('hockey_score_history', JSON.stringify(reducedHistory));
+          if (isClient) {
+            localStorage.setItem('hockey_score_history', JSON.stringify(reducedHistory));
+          }
           return reducedHistory;
         }
   
@@ -462,12 +521,12 @@ const HockeyScoreboard: React.FC = () => {
     ));
   };
   
-  // Update team logo - FIXED: Added proper type handling
+  // Update team logo with proper type handling
   const updateTeamLogo = (id: number, logoFile: File): void => {
     if (!logoFile) return;
     
     const reader = new FileReader();
-    reader.onload = (e) => {
+    reader.onload = (e: ProgressEvent<FileReader>) => {
       const target = e.target;
       if (target && target.result) {
         // Ensure we're using a string value for the logo
@@ -483,12 +542,9 @@ const HockeyScoreboard: React.FC = () => {
     reader.readAsDataURL(logoFile); // This will generate a string
   };
   
-  // Setup teams modal functionality
-  const [showTeamSetup, setShowTeamSetup] = useState<boolean>(false);
-  
   // Reset entire game
   const resetGame = (): void => {
-    if (window.confirm("Are you sure you want to reset the entire game? All scores and history will be lost.")) {
+    if (typeof window !== 'undefined' && window.confirm("Are you sure you want to reset the entire game? All scores and history will be lost.")) {
       // Clear all localStorage
       localStorage.clear();
       
@@ -501,6 +557,11 @@ const HockeyScoreboard: React.FC = () => {
       setSoundEnabled(true);
     }
   };
+
+  // If not client-side, return null to prevent hydration issues
+  if (!isClient) {
+    return null;
+  }
 
   return (
     <div className="flex flex-col min-h-screen" style={{ backgroundColor: colors.black, color: colors.yellow }}>
