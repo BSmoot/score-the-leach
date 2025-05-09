@@ -5,6 +5,8 @@ import Image from 'next/image';
 import { Check, X } from 'lucide-react';
 import { Team, HistoryState, DEFAULT_ICONS } from '../types';
 import { saveToLocalStorage } from '../utils/storage';
+import { requestWakeLock, releaseWakeLock, isWakeLockSupported } from '../utils/wakeLock';
+import { initializeTimer, updateTimerState, syncTimerOnVisibilityChange } from '../utils/timerSync';
 import TimerSection from './TimerSection';
 import TeamsSection from './TeamsSection';
 import ControlsSection from './ControlsSection';
@@ -17,6 +19,10 @@ const HockeyScoreboard: React.FC = () => {
   
   // Edit mode state
   const [editMode, setEditMode] = useState<boolean>(false);
+  
+  // Wake lock state
+  const [wakeLockSupported, setWakeLockSupported] = useState<boolean>(false);
+  const [wakeLockActive, setWakeLockActive] = useState<boolean>(false);
 
   // Stable references with useMemo
   const colors = useMemo(() => ({
@@ -52,6 +58,10 @@ const HockeyScoreboard: React.FC = () => {
 
   // Refs
   const buzzerRef = useRef<HTMLAudioElement | null>(null);
+  // Flag to prevent circular updates between time and minutes/seconds
+  const isUpdatingFromTick = useRef<boolean>(false);
+  // Flag to track if timer has been initialized
+  const timerInitialized = useRef<boolean>(false);
 
   // Client-side effect for initialization and hydration
   useEffect(() => {
@@ -86,15 +96,106 @@ const HockeyScoreboard: React.FC = () => {
       setIsMobile(window.innerWidth <= 1024);
     };
 
-    // Run hydration and mobile check
+    // Check if Wake Lock API is supported
+    const checkWakeLockSupport = () => {
+      const supported = isWakeLockSupported();
+      setWakeLockSupported(supported);
+      console.log('Wake Lock API supported:', supported);
+    };
+
+    // Run initialization functions
     hydrateFromStorage();
     checkMobile();
+    checkWakeLockSupport();
 
     // Add resize listener
     window.addEventListener('resize', checkMobile);
 
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
+  
+  // Initialize timer on component mount
+  useEffect(() => {
+    if (!isClient) return;
+    
+    // Initialize timer once on mount
+    if (!timerInitialized.current) {
+      console.log('Initializing timer on mount');
+      initializeTimer(time, isRunning);
+      timerInitialized.current = true;
+    }
+  }, [isClient]);
+  
+  // Effect for handling page visibility changes
+  useEffect(() => {
+    if (!isClient) return;
+    
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        console.log('Page became visible');
+        
+        // Initialize timer if not already initialized
+        if (!timerInitialized.current) {
+          console.log('Initializing timer');
+          initializeTimer(time, isRunning);
+          timerInitialized.current = true;
+        } else if (isRunning) {
+          // Sync the timer when the page becomes visible again
+          console.log('Syncing timer');
+          const syncedTime = syncTimerOnVisibilityChange();
+          if (syncedTime !== null) {
+            console.log('Syncing timer to:', syncedTime);
+            
+            // Use isUpdatingFromTick to prevent circular updates
+            isUpdatingFromTick.current = true;
+            setTime(syncedTime);
+            
+            // Reset the flag after a short delay
+            setTimeout(() => {
+              isUpdatingFromTick.current = false;
+            }, 50);
+          }
+        }
+        
+        // Re-acquire wake lock if it was active before
+        if (wakeLockActive) {
+          requestWakeLock().then(success => {
+            setWakeLockActive(success);
+          });
+        }
+      } else {
+        console.log('Page hidden');
+        // Update timer state before the page is hidden
+        updateTimerState(time, isRunning);
+      }
+    };
+    
+    // Add visibility change listener
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [isClient, time, isRunning, wakeLockActive]);
+  
+  // Effect for managing wake lock based on timer state
+  useEffect(() => {
+    if (!isClient || !wakeLockSupported) return;
+    
+    const manageWakeLock = async () => {
+      if (isRunning) {
+        // Request wake lock when timer is running
+        const success = await requestWakeLock();
+        setWakeLockActive(success);
+      } else if (wakeLockActive) {
+        // Release wake lock when timer is stopped
+        await releaseWakeLock();
+        setWakeLockActive(false);
+      }
+    };
+    
+    manageWakeLock();
+  }, [isClient, isRunning, wakeLockSupported, wakeLockActive]);
 
   // Save state changes to localStorage
   useEffect(() => {
@@ -231,17 +332,31 @@ const HockeyScoreboard: React.FC = () => {
     setIsRunning(false);
   };
   
-  // Update time when minutes or seconds change
+  // Update time when minutes or seconds change (only if not from a tick)
   useEffect(() => {
     if (!isClient) return;
-    setTime(minutes * 60 + seconds);
+    if (!isUpdatingFromTick.current) {
+      setTime(minutes * 60 + seconds);
+    }
   }, [minutes, seconds, isClient]);
   
-  // Update minutes and seconds when time changes
+  // Update minutes and seconds when time changes (mark as from tick)
   useEffect(() => {
-    if (!isClient) return;
+    if (!isClient || isUpdatingFromTick.current) return;
+    
+    // Set the flag before updating to prevent circular updates
+    isUpdatingFromTick.current = true;
+    
+    // Update minutes and seconds based on time
     setMinutes(Math.floor(time / 60));
     setSeconds(time % 60);
+    
+    // Reset the flag after a short delay
+    const timeoutId = setTimeout(() => {
+      isUpdatingFromTick.current = false;
+    }, 50);
+    
+    return () => clearTimeout(timeoutId);
   }, [time, isClient]);
   
   // Toggle timer pause/play
