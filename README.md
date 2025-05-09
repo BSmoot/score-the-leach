@@ -14,6 +14,8 @@ A Next.js application for tracking scores and managing hockey games at the Leach
 - **Mobile Responsive**: Works on all device sizes
 - **PWA Support**: Can be installed as a Progressive Web App for offline use
 - **Local Storage**: Game state persists between sessions
+- **Background Timer**: Timer continues to run correctly even when the app is in the background
+- **Screen Wake Lock**: Prevents the screen from turning off while the timer is running (Chrome/Edge only)
 
 ## Getting Started
 
@@ -64,7 +66,9 @@ src/
 ├── types/                # TypeScript type definitions
 │   └── index.ts          # Shared types
 └── utils/                # Utility functions
-    └── storage.ts        # LocalStorage utilities
+    ├── storage.ts        # LocalStorage utilities
+    ├── timerSync.ts      # Timer synchronization for background operation
+    └── wakeLock.ts       # Screen wake lock functionality
 ```
 
 ## Component Architecture
@@ -129,7 +133,3 @@ The application can be deployed to any static hosting service:
    ```
 
 2. The output in the `.next` directory can be deployed to services like Vercel, Netlify, or any static hosting.
-
-## License
-
-This project is licensed under the MIT License - see the LICENSE file for details.

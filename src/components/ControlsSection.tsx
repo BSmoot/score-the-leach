@@ -11,7 +11,7 @@ interface ControlsSectionProps {
   handleTeamScore: (scoringTeamId: number) => void;
   handleTimeout: () => void;
   undoLastAction: () => void;
-  scoreHistory: any[];
+  scoreHistory: import('../types').HistoryState[];
   setShowTeamSetup: (show: boolean) => void;
   enableEditMode: () => void;
   resetGame: () => void;

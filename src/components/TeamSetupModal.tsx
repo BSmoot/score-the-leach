@@ -1,7 +1,7 @@
 "use client";
 
 import React from 'react';
-import { Team, DEFAULT_ICONS } from '../types';
+import { Team, HistoryState } from '../types';
 
 interface TeamSetupModalProps {
   showTeamSetup: boolean;
@@ -10,7 +10,7 @@ interface TeamSetupModalProps {
   setTeams: (teams: Team[]) => void;
   setPeriod: (period: number) => void;
   resetTimer: () => void;
-  setScoreHistory: (history: any[]) => void;
+  setScoreHistory: (history: HistoryState[]) => void;
   defaultTeams: Team[];
   isMobile: boolean;
   colors: {

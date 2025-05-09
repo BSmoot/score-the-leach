@@ -31,8 +31,8 @@ const TimerSection: React.FC<TimerSectionProps> = ({
   resetTimer,
   soundEnabled,
   toggleSound,
-  colors,
-  editMode
+  colors
+  // editMode is used in the parent component to control the overlay
 }) => {
   return (
     <div className="flex flex-col items-center justify-center mb-4 relative">

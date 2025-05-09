@@ -67,10 +67,10 @@ export function loadFromLocalStorage<T>(key: string, defaultValue: T): T {
  * @param keys Object with keys mapping to default values
  * @returns Object with hydrated values
  */
-export function hydrateFromStorage<T extends Record<string, any>>(
-  keys: Record<string, { storageKey: string; defaultValue: any }>
+export function hydrateFromStorage<T extends Record<string, unknown>>(
+  keys: Record<string, { storageKey: string; defaultValue: unknown }>
 ): T {
-  const result: Record<string, any> = {};
+  const result: Record<string, unknown> = {};
   
   try {
     Object.entries(keys).forEach(([stateKey, { storageKey, defaultValue }]) => {

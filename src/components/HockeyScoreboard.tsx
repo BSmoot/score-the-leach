@@ -42,7 +42,7 @@ const HockeyScoreboard: React.FC = () => {
   const [soundEnabled, setSoundEnabled] = useState<boolean>(true);
   const [teams, setTeams] = useState<Team[]>(defaultTeams);
   const [scoreHistory, setScoreHistory] = useState<HistoryState[]>([]);
-  const [editingScore, setEditingScore] = useState<number | null>(null);
+  // Removed unused editingScore state
   const [showTeamSetup, setShowTeamSetup] = useState<boolean>(false);
   const [isMobile, setIsMobile] = useState<boolean>(false);
   
@@ -266,7 +266,6 @@ const HockeyScoreboard: React.FC = () => {
   
   const confirmEdits = (): void => {
     setEditMode(false);
-    setEditingScore(null);
   };
   
   const cancelEdits = (): void => {
@@ -274,7 +273,6 @@ const HockeyScoreboard: React.FC = () => {
     setTeams(originalTeams);
     setPeriod(originalPeriod);
     setEditMode(false);
-    setEditingScore(null);
   };
   
   // Increment period and reset timer
